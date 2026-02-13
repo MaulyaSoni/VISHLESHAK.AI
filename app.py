@@ -1,61 +1,63 @@
 """
-FINBOT - AI Financial Assistant
+FINBOT v4 - Advanced Data Intelligence Platform
 Main Streamlit Application
 
-Features:
-1. Upload and analyze CSV/Excel files
-2. Get AI-powered financial insights
-3. Interactive Q&A chatbot with conversation memory
+Author: FINBOT Team
+Version: 4.0.0
 """
 
 import streamlit as st
 import pandas as pd
-from pathlib import Path
-import sys
+from config import settings
+from utils.data_loader import DataLoader
+from analyzers.insight_generator import InsightGenerator
+from chatbot.qa_chain import DataContextManager
+import os
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent))
-
-from config.settings import PAGE_TITLE, PAGE_ICON, LAYOUT, UPLOADS_DIR
-from src.core.data_processor import process_file_for_rag, DataProcessor
-from src.agents.analysis_agent import analysis_orchestrator
-from src.agents.chatbot_agent import get_chatbot
-from src.utils.helpers import (
-    validate_file, 
-    create_data_summary_text,
-    get_insights_from_dataframe,
-    clean_dataframe
-)
-from dotenv import load_dotenv
-load_dotenv()
 # Page configuration
 st.set_page_config(
-    page_title=PAGE_TITLE,
-    page_icon=PAGE_ICON,
-    layout=LAYOUT,
+    page_title=settings.PAGE_TITLE,
+    page_icon=settings.PAGE_ICON,
+    layout=settings.LAYOUT,
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for better UI
+# Custom CSS for professional UI
 st.markdown("""
 <style>
     .main-header {
-        font-size: 2.5rem;
-        font-weight: 700;
-        color: #1f2937;
-        margin-bottom: 1rem;
+        font-size: 3rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 0.5rem;
     }
     .sub-header {
-        font-size: 1.5rem;
-        font-weight: 600;
-        color: #374151;
-        margin-top: 2rem;
+        font-size: 1.2rem;
+        color: #6b7280;
+        margin-bottom: 2rem;
     }
     .metric-card {
-        background: #f3f4f6;
-        padding: 1rem;
+        background: #f9fafb;
+        padding: 1.5rem;
         border-radius: 0.5rem;
-        margin: 0.5rem 0;
+        border-left: 4px solid #667eea;
+        margin: 1rem 0;
+    }
+    .insight-box {
+        background: #eff6ff;
+        padding: 1.5rem;
+        border-radius: 0.5rem;
+        border-left: 4px solid #3b82f6;
+        margin: 1rem 0;
+    }
+    .warning-box {
+        background: #fef3c7;
+        padding: 1.5rem;
+        border-radius: 0.5rem;
+        border-left: 4px solid #f59e0b;
+        margin: 1rem 0;
     }
     .chat-message {
         padding: 1rem;
@@ -63,331 +65,359 @@ st.markdown("""
         margin: 0.5rem 0;
     }
     .user-message {
-        background: #dbeafe;
+        background: #e0e7ff;
         margin-left: 2rem;
     }
-    .assistant-message {
+    .bot-message {
         background: #f3f4f6;
         margin-right: 2rem;
     }
     .stButton>button {
-        width: 100%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 0.5rem 2rem;
+        font-weight: 600;
+        border-radius: 0.5rem;
     }
 </style>
 """, unsafe_allow_html=True)
 
+# Initialize session state
+if 'data' not in st.session_state:
+    st.session_state.data = None
+if 'analysis_result' not in st.session_state:
+    st.session_state.analysis_result = None
+if 'mode' not in st.session_state:
+    st.session_state.mode = "Analysis"
+if 'context_manager' not in st.session_state:
+    st.session_state.context_manager = DataContextManager()
+if 'qa_chain' not in st.session_state:
+    st.session_state.qa_chain = None
+if 'session_id' not in st.session_state:
+    import uuid
+    st.session_state.session_id = str(uuid.uuid4())
 
-def initialize_session_state():
-    """Initialize session state variables"""
-    if "uploaded_file" not in st.session_state:
-        st.session_state.uploaded_file = None
-    if "data_processor" not in st.session_state:
-        st.session_state.data_processor = None
-    if "analysis_result" not in st.session_state:
-        st.session_state.analysis_result = None
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = []
-    if "session_id" not in st.session_state:
-        st.session_state.session_id = "default"
-    if "current_mode" not in st.session_state:
-        st.session_state.current_mode = "analysis"  # or "chatbot"
+# Header
+st.markdown('<h1 class="main-header">🤖 FINBOT v4</h1>', unsafe_allow_html=True)
+st.markdown('<p class="sub-header">Advanced Data Intelligence Platform with AI-Powered Analysis & Q&A</p>', unsafe_allow_html=True)
 
-
-def display_header():
-    """Display application header"""
-    st.markdown('<p class="main-header">💰 FINBOT - AI Financial Assistant</p>', unsafe_allow_html=True)
-    st.markdown("Analyze your financial data and get intelligent insights with AI-powered assistance.")
-    st.markdown("---")
-
-
-def handle_file_upload():
-    """Handle file upload and processing"""
+# Sidebar
+with st.sidebar:
+    st.markdown("### 📁 Upload Your Data")
     uploaded_file = st.file_uploader(
-        "Upload your financial data (CSV or Excel)",
-        type=["csv", "xlsx", "xls"],
-        help="Upload a CSV or Excel file containing your financial data"
+        "Choose CSV or Excel file",
+        type=['csv', 'xlsx', 'xls'],
+        help="Upload your data file for analysis"
     )
     
-    if uploaded_file is not None:
+    if uploaded_file:
         # Save uploaded file
-        file_path = UPLOADS_DIR / uploaded_file.name
-        with open(file_path, "wb") as f:
+        os.makedirs(settings.UPLOAD_FOLDER, exist_ok=True)
+        file_path = os.path.join(settings.UPLOAD_FOLDER, uploaded_file.name)
+        
+        with open(file_path, 'wb') as f:
             f.write(uploaded_file.getbuffer())
         
-        # Validate file
-        is_valid, error_msg = validate_file(str(file_path))
+        # Load data
+        df, error = DataLoader.load_file(file_path)
         
-        if not is_valid:
-            st.error(f"❌ {error_msg}")
-            return None
-        
-        # Process file
-        with st.spinner("Processing file..."):
-            try:
-                processor = process_file_for_rag(str(file_path))
-                st.success(f"✅ File uploaded successfully: {uploaded_file.name}")
-                return processor
-            except Exception as e:
-                st.error(f"❌ Error processing file: {str(e)}")
-                return None
-    
-    return None
-
-
-def display_data_overview(processor: DataProcessor):
-    """Display overview of the uploaded data"""
-    st.markdown('<p class="sub-header">📊 Data Overview</p>', unsafe_allow_html=True)
-    
-    metadata = processor.get_metadata()
-    df = processor.get_dataframe()
-    
-    # Metrics
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Total Rows", f"{metadata['shape']['rows']:,}")
-    with col2:
-        st.metric("Total Columns", metadata['shape']['columns'])
-    with col3:
-        st.metric("Numeric Columns", len(metadata['numeric_columns']))
-    with col4:
-        missing_pct = round((sum(metadata['missing_values'].values()) / 
-                           (metadata['shape']['rows'] * metadata['shape']['columns'])) * 100, 1)
-        st.metric("Data Completeness", f"{100 - missing_pct}%")
-    
-    # Show sample data
-    with st.expander("📋 View Sample Data", expanded=False):
-        st.dataframe(df.head(10), use_container_width=True)
-    
-    # Show column information
-    with st.expander("📑 Column Information", expanded=False):
-        col_info = []
-        for col in metadata['columns']:
-            info = processor.get_column_info(col)
-            col_info.append({
-                "Column": col,
-                "Type": info.get("dtype", "Unknown"),
-                "Missing": info.get("missing", 0),
-                "Unique": info.get("unique_values", 0)
-            })
-        st.dataframe(pd.DataFrame(col_info), use_container_width=True)
-
-
-def run_analysis(processor: DataProcessor):
-    """Run financial analysis on the data"""
-    st.markdown('<p class="sub-header">🔍 AI Analysis</p>', unsafe_allow_html=True)
-    
-    if st.button("🚀 Analyze Data", type="primary"):
-        with st.spinner("Analyzing your data with AI..."):
-            try:
-                # Get data summary
-                data_summary = create_data_summary_text(processor.get_dataframe())
-                
-                # Run analysis
-                result = analysis_orchestrator.run_analysis(
-                    data_summary=data_summary,
-                    df=processor.get_dataframe()
-                )
-                
-                st.session_state.analysis_result = result
-                
-            except Exception as e:
-                st.error(f"❌ Analysis failed: {str(e)}")
-                return
-    
-    # Display analysis results
-    if st.session_state.analysis_result:
-        display_analysis_results(st.session_state.analysis_result)
-
-
-def display_analysis_results(result: dict):
-    """Display the analysis results"""
-    
-    # Health Score and Risk Level
-    col1, col2 = st.columns(2)
-    with col1:
-        health_score = result.get("health_score", 0)
-        st.metric(
-            "💚 Financial Health Score",
-            f"{health_score}/100",
-            delta="Good" if health_score >= 70 else "Needs Attention"
-        )
-    with col2:
-        risk_level = result.get("risk_level", "Unknown")
-        risk_emoji = {"Low": "🟢", "Medium": "🟡", "High": "🔴"}.get(risk_level, "⚪")
-        st.metric("⚠️ Risk Level", f"{risk_emoji} {risk_level}")
-    
-    # Summary
-    st.markdown("### 📝 Summary")
-    st.info(result.get("summary", "No summary available"))
-    
-    # Key Insights
-    if "key_insights" in result and result["key_insights"]:
-        st.markdown("### 💡 Key Insights")
-        for insight in result["key_insights"]:
-            st.markdown(f"- {insight}")
-    
-    # Trends
-    if "trends" in result and result["trends"]:
-        st.markdown("### 📈 Identified Trends")
-        for trend in result["trends"]:
-            st.markdown(f"- {trend}")
-    
-    # Concerns
-    if "concerns" in result and result["concerns"]:
-        st.markdown("### ⚠️ Concerns")
-        for concern in result["concerns"]:
-            st.warning(concern)
-    
-    # Recommendations
-    if "recommendations" in result and result["recommendations"]:
-        st.markdown("### 🎯 Recommendations")
-        for rec in result["recommendations"]:
-            st.success(rec)
-
-
-def run_chatbot(processor: DataProcessor):
-    """OPTIMIZED: Run the interactive chatbot with proper data context"""
-    st.markdown('<p class="sub-header">💬 Ask Questions About Your Data</p>', unsafe_allow_html=True)
-    
-    # Get chatbot instance
-    chatbot = get_chatbot(st.session_state.session_id)
-    
-    # Set data context WITH processor reference
-    if processor:
-        data_summary = create_data_summary_text(processor.get_dataframe(), max_rows=3)
-        chatbot.chatbot.set_data_context(data_summary, processor)  # Pass processor!
-    
-    # Display chat history
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-    
-    # Chat container
-    chat_container = st.container()
-    
-    with chat_container:
-        for message in st.session_state.messages:
-            with st.chat_message(message["role"]):
-                st.markdown(message["content"])
-    
-    # Chat input
-    if prompt := st.chat_input("Ask me anything about your financial data..."):
-        # Add user message
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
-        
-        # Get bot response
-        with st.chat_message("assistant"):
-            with st.spinner("Thinking..."):
-                try:
-                    # OPTIMIZED: Pass data_processor for direct data access
-                    response_data = chatbot.process_message(
-                        prompt, 
-                        data_summary=data_summary if processor else None,
-                        data_processor=processor  # Pass the processor!
-                    )
-                    response = response_data.get("response", "I couldn't process that request.")
-                    
-                    st.markdown(response)
-                    
-                    # Add suggestions if available
-                    if "suggestions" in response_data:
-                        st.markdown("**Suggested questions:**")
-                        for suggestion in response_data["suggestions"]:
-                            st.markdown(f"- {suggestion}")
-                    
-                    # Add to message history
-                    st.session_state.messages.append({"role": "assistant", "content": response})
-                    
-                except Exception as e:
-                    error_msg = f"Sorry, I encountered an error: {str(e)}"
-                    st.error(error_msg)
-                    st.session_state.messages.append({"role": "assistant", "content": error_msg})
-    
-    # Clear conversation button
-    if st.session_state.messages:
-        col1, col2 = st.columns([3, 1])
-        with col2:
-            if st.button("🗑️ Clear Chat"):
-                st.session_state.messages = []
-                chatbot.clear_conversation()
-                st.rerun()
-
-def main():
-    """Main application logic"""
-    initialize_session_state()
-    display_header()
-    
-    # Sidebar
-    with st.sidebar:
-        st.markdown("## 🎛️ Control Panel")
-        
-        # Mode selection
-        mode = st.radio(
-            "Choose Mode:",
-            ["📊 Analysis", "💬 Chatbot Q&A"],
-            index=0 if st.session_state.current_mode == "analysis" else 1
-        )
-        
-        st.session_state.current_mode = "analysis" if "Analysis" in mode else "chatbot"
-        
-        st.markdown("---")
-        st.markdown("### 📁 File Upload")
-    
-    # File upload
-    processor = handle_file_upload()
-    
-    if processor:
-        st.session_state.data_processor = processor
-    
-    # Main content area
-    if st.session_state.data_processor:
-        # Display data overview
-        display_data_overview(st.session_state.data_processor)
-        
-        st.markdown("---")
-        
-        # Mode-specific content
-        if st.session_state.current_mode == "analysis":
-            run_analysis(st.session_state.data_processor)
+        if error:
+            st.error(f"❌ {error}")
         else:
-            run_chatbot(st.session_state.data_processor)
+            st.session_state.data = df
+            st.success(f"✅ Loaded {len(df):,} rows × {len(df.columns)} columns")
+            
+            # Show basic info
+            file_info = DataLoader.get_file_info(file_path)
+            st.info(f"📊 File Size: {file_info['size_mb']} MB")
+    
+    # Mode selector
+    st.markdown("---")
+    st.markdown("### 🎯 Select Mode")
+    
+    mode = st.radio(
+        "Choose operation mode:",
+        ["📊 Analysis", "💬 Q&A Chatbot"],
+        label_visibility="collapsed"
+    )
+    
+    if mode == "📊 Analysis":
+        st.session_state.mode = "Analysis"
+    else:
+        st.session_state.mode = "Q&A"
+    
+    # Settings
+    st.markdown("---")
+    st.markdown("### ⚙️ Settings")
+    
+    if st.button("🗑️ Clear All Data"):
+        st.session_state.data = None
+        st.session_state.analysis_result = None
+        st.session_state.qa_chain = None
+        st.rerun()
+    
+    # About
+    st.markdown("---")
+    st.markdown("### ℹ️ About")
+    st.markdown("""
+    **FINBOT v4** is an advanced data intelligence platform powered by:
+    - 📊 Comprehensive Statistical Analysis
+    - 🔍 Pattern Detection & Anomaly Identification
+    - 💡 AI-Powered Insights (Claude-level)
+    - 💬 Conversational Q&A with Memory
+    - 🎯 Actionable Recommendations
+    
+    **Powered by:** Groq LLaMA 3.1 70B
+    """)
+
+# Main content area
+if st.session_state.data is None:
+    # Welcome screen
+    st.markdown("""
+    <div class="insight-box">
+        <h2>👋 Welcome to FINBOT v4!</h2>
+        <p>Upload your CSV or Excel file to get started with:</p>
+        <ul>
+            <li><strong>📊 Analysis Mode:</strong> Get comprehensive statistical analysis, pattern detection, and AI-powered insights</li>
+            <li><strong>💬 Q&A Mode:</strong> Ask questions about your data and get intelligent answers with conversation memory</li>
+        </ul>
+        <p><strong>Supported formats:</strong> CSV, XLSX, XLS | <strong>Max size:</strong> 50 MB</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Show example questions
+    st.markdown("### 💡 Example Questions You Can Ask:")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("""
+        **Statistical Questions:**
+        - What's the average value of column X?
+        - How many records have Y > 100?
+        - What's the correlation between A and B?
+        - Show me the distribution of categories
+        """)
+    
+    with col2:
+        st.markdown("""
+        **Insight Questions:**
+        - What are the main trends in this data?
+        - Are there any outliers I should know about?
+        - What patterns do you see?
+        - What recommendations do you have?
+        """)
+
+else:
+    # Data loaded - show appropriate interface based on mode
+    
+    if st.session_state.mode == "Analysis":
+        # ANALYSIS MODE
+        st.markdown("## 📊 Comprehensive Analysis")
+        
+        # Show data preview
+        with st.expander("👁️ Preview Data", expanded=False):
+            st.dataframe(st.session_state.data.head(10), use_container_width=True)
+        
+        # Analyze button
+        if st.button("🚀 Analyze Data", type="primary", use_container_width=True):
+            with st.spinner("🔍 Performing comprehensive analysis... This may take a moment."):
+                try:
+                    # Generate insights
+                    generator = InsightGenerator(st.session_state.data)
+                    result = generator.generate_comprehensive_insights()
+                    st.session_state.analysis_result = result
+                    st.success("✅ Analysis complete!")
+                except Exception as e:
+                    st.error(f"❌ Error during analysis: {str(e)}")
+        
+        # Display results
+        if st.session_state.analysis_result:
+            result = st.session_state.analysis_result
+            
+            # Executive Summary
+            st.markdown(f"""
+            <div class="metric-card">
+                <h3>📋 Executive Summary</h3>
+                <p>{result['executive_summary']}</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Tabs for different sections
+            tab1, tab2, tab3, tab4 = st.tabs([
+                "💡 AI Insights",
+                "📊 Statistical Analysis",
+                "🔍 Pattern Detection",
+                "🎯 Recommendations"
+            ])
+            
+            with tab1:
+                st.markdown("### 💡 AI-Powered Insights")
+                st.markdown(result['ai_insights'])
+            
+            with tab2:
+                st.markdown("### 📊 Statistical Analysis")
+                
+                # Basic Info
+                basic_info = result['statistical_analysis']['basic_info']
+                col1, col2, col3, col4 = st.columns(4)
+                
+                with col1:
+                    st.metric("Total Rows", f"{basic_info['total_rows']:,}")
+                with col2:
+                    st.metric("Total Columns", basic_info['total_columns'])
+                with col3:
+                    st.metric("Numeric Columns", basic_info['numeric_columns'])
+                with col4:
+                    st.metric("Categorical Columns", basic_info['categorical_columns'])
+                
+                # Numeric Analysis
+                if result['statistical_analysis']['numeric_analysis']:
+                    st.markdown("#### Numeric Columns")
+                    numeric_df = pd.DataFrame(result['statistical_analysis']['numeric_analysis']).T
+                    st.dataframe(numeric_df, use_container_width=True)
+                
+                # Correlation Analysis
+                if result['statistical_analysis']['correlation_analysis'].get('strong_correlations'):
+                    st.markdown("#### Strong Correlations")
+                    for corr in result['statistical_analysis']['correlation_analysis']['strong_correlations'][:10]:
+                        st.markdown(f"- **{corr['variable_1']}** ↔ **{corr['variable_2']}**: {corr['correlation']:.3f} ({corr['strength']} {corr['direction']})")
+            
+            with tab3:
+                st.markdown("### 🔍 Pattern Detection")
+                
+                patterns = result['pattern_analysis']
+                
+                # Trends
+                if patterns['trend_patterns']:
+                    st.markdown("#### 📈 Trend Patterns")
+                    for trend in patterns['trend_patterns']:
+                        st.markdown(f"- {trend['interpretation']}")
+                
+                # Categorical Patterns
+                if patterns['categorical_patterns']:
+                    st.markdown("#### 📊 Categorical Patterns")
+                    for pattern in patterns['categorical_patterns']:
+                        st.markdown(f"- {pattern['interpretation']}")
+                
+                # Anomalies
+                if patterns['anomaly_patterns']:
+                    st.markdown("""
+                    <div class="warning-box">
+                        <h4>⚠️ Anomaly Patterns</h4>
+                    """, unsafe_allow_html=True)
+                    for anomaly in patterns['anomaly_patterns']:
+                        st.markdown(f"- {anomaly['interpretation']}")
+                    st.markdown("</div>", unsafe_allow_html=True)
+                
+                # Data Quality Issues
+                if patterns['data_quality_patterns']:
+                    st.markdown("#### 🔍 Data Quality Issues")
+                    for issue in patterns['data_quality_patterns']:
+                        st.markdown(f"- {issue['interpretation']}")
+            
+            with tab4:
+                st.markdown("### 🎯 Recommendations")
+                
+                if result['recommendations']:
+                    for i, rec in enumerate(result['recommendations'], 1):
+                        st.markdown(f"{i}. {rec}")
+                else:
+                    st.info("No specific recommendations at this time.")
     
     else:
-        st.info("👆 Please upload a CSV or Excel file to get started!")
+        # Q&A MODE
+        st.markdown("## 💬 Ask Questions About Your Data")
         
-        # Show example
-        with st.expander("ℹ️ How to use FINBOT", expanded=True):
-            st.markdown("""
-            ### Getting Started
+        # Initialize Q&A chain if not exists
+        if st.session_state.qa_chain is None:
+            with st.spinner("Initializing chatbot..."):
+                st.session_state.qa_chain = st.session_state.context_manager.create_context(
+                    st.session_state.session_id,
+                    st.session_state.data
+                )
+                st.success("✅ Chatbot ready!")
+        
+        # Show data preview
+        with st.expander("👁️ Preview Data", expanded=False):
+            st.dataframe(st.session_state.data.head(10), use_container_width=True)
+        
+        # Chat interface
+        st.markdown("### 💭 Conversation")
+        
+        # Display chat history
+        chat_history = st.session_state.qa_chain.get_chat_history()
+        
+        if chat_history:
+            for msg in chat_history:
+                if msg['type'] == 'human':
+                    st.markdown(f"""
+                    <div class="chat-message user-message">
+                        <strong>👤 You:</strong><br>
+                        {msg['content']}
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.markdown(f"""
+                    <div class="chat-message bot-message">
+                        <strong>🤖 FINBOT:</strong><br>
+                        {msg['content']}
+                    </div>
+                    """, unsafe_allow_html=True)
+        else:
+            st.info("👋 Start a conversation! Ask me anything about your data.")
+        
+        # Question input
+        col1, col2 = st.columns([5, 1])
+        
+        with col1:
+            question = st.text_input(
+                "Ask a question:",
+                placeholder="e.g., What's the average attendance rate?",
+                label_visibility="collapsed"
+            )
+        
+        with col2:
+            ask_button = st.button("Ask", type="primary", use_container_width=True)
+        
+        # Example questions
+        with st.expander("💡 Example Questions"):
+            example_questions = [
+                "What's the summary of this dataset?",
+                "How many unique values are in each column?",
+                "What are the top 5 categories by frequency?",
+                "Are there any missing values?",
+                "What's the correlation between X and Y?",
+                "Show me statistics for column X",
+                "What patterns do you notice?",
+                "What's the average value of X?",
+                "How many rows have Y > threshold?"
+            ]
             
-            1. **Upload Your Data**: Click 'Browse files' and select a CSV or Excel file
-            2. **Choose Your Mode**:
-               - **📊 Analysis Mode**: Get comprehensive AI analysis of your financial data
-               - **💬 Chatbot Mode**: Ask questions and get answers about your data
-            
-            ### What FINBOT Can Do
-            
-            **Analysis Mode:**
-            - Calculate financial health scores
-            - Identify trends and patterns
-            - Assess risk levels
-            - Provide actionable recommendations
-            
-            **Chatbot Mode:**
-            - Answer questions about your data
-            - Explain specific metrics
-            - Compare different aspects of your finances
-            - Remember conversation context
-            
-            ### Tips for Best Results
-            
-            - Ensure your data has clear column names
-            - Include date columns for trend analysis
-            - Numeric values should be properly formatted
-            - Remove any sensitive personal information before upload
-            """)
+            for eq in example_questions:
+                if st.button(eq, key=f"example_{eq}"):
+                    question = eq
+                    ask_button = True
+        
+        # Process question
+        if ask_button and question:
+            with st.spinner("🤔 Thinking..."):
+                try:
+                    result = st.session_state.qa_chain.ask_with_data_analysis(question)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Error: {str(e)}")
+        
+        # Clear chat button
+        if st.button("🗑️ Clear Chat History"):
+            st.session_state.qa_chain.clear_history()
+            st.rerun()
 
-
-if __name__ == "__main__":
-    main()
+# Footer
+st.markdown("---")
+st.markdown("""
+<div style="text-align: center; color: #6b7280; padding: 1rem;">
+    <p><strong>FINBOT v4</strong> | Advanced Data Intelligence Platform | Powered by Groq LLaMA 3.1 70B</p>
+    <p>Built with ❤️ using LangChain, Streamlit, and Claude-level AI insights</p>
+</div>
+""", unsafe_allow_html=True)
