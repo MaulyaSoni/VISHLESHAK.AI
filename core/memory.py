@@ -8,6 +8,7 @@ Features:
 - Session management
 - Message history persistence
 - Context window management
+- Data context storage (NEW in v4)
 """
 
 import sqlite3
@@ -16,22 +17,34 @@ import json
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from config import settings
+from langchain_core.messages import HumanMessage, AIMessage
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class ChatMemoryManager:
     """
     Manages persistent chat memory using SQLite database
+    Enhanced in v4 with data context storage and LangChain message format
     """
     
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, session_id: Optional[str] = None, db_path: Optional[str] = None):
         """
         Initialize memory manager
         
         Args:
+            session_id: Optional default session ID
             db_path: Path to SQLite database (defaults to settings.CHAT_HISTORY_DB)
         """
+        self.session_id = session_id
         self.db_path = db_path or settings.CHAT_HISTORY_DB
+        self._data_context: Dict[str, Any] = {}  # In-memory data context
         self._ensure_database()
+        
+        # Auto-create session if session_id provided
+        if session_id:
+            self.create_session(session_id)
     
     def _ensure_database(self):
         """Create database and tables if they don't exist"""
@@ -137,20 +150,27 @@ class ChatMemoryManager:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             
-            query = """
-                SELECT message_type, content, timestamp, metadata
-                FROM messages
-                WHERE session_id = ?
-                ORDER BY timestamp ASC
-            """
-            
             if limit:
-                query += f" LIMIT {limit}"
-            
-            cursor.execute(query, (session_id,))
+                # Get last N messages
+                cursor.execute("""
+                    SELECT message_type, content, timestamp, metadata
+                    FROM messages
+                    WHERE session_id = ?
+                    ORDER BY timestamp DESC
+                    LIMIT ?
+                """, (session_id, limit))
+                rows = list(reversed(cursor.fetchall()))
+            else:
+                cursor.execute("""
+                    SELECT message_type, content, timestamp, metadata
+                    FROM messages
+                    WHERE session_id = ?
+                    ORDER BY timestamp ASC
+                """, (session_id,))
+                rows = cursor.fetchall()
             
             messages = []
-            for row in cursor.fetchall():
+            for row in rows:
                 messages.append({
                     'type': row[0],
                     'content': row[1],
@@ -172,9 +192,80 @@ class ChatMemoryManager:
             List of recent messages
         """
         n = n or settings.CHAT_MEMORY_WINDOW
+        return self.get_messages(session_id, limit=n)
+    
+    def get_history(self, session_id: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """
+        Alias for get_messages - used by qa_chain
         
-        messages = self.get_messages(session_id)
-        return messages[-n:] if len(messages) > n else messages
+        Args:
+            session_id: Session identifier
+            limit: Max messages
+            
+        Returns:
+            List of message dicts
+        """
+        return self.get_messages(session_id, limit=limit)
+    
+    def get_chat_history(self, session_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        Get chat history for a session (uses default session_id if not provided)
+        
+        Returns:
+            List of message dicts with 'type' and 'content' keys
+        """
+        sid = session_id or self.session_id
+        if not sid:
+            return []
+        return self.get_messages(sid)
+    
+    def get_memory_variables(self, session_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Get memory variables in LangChain-compatible format
+        
+        Returns:
+            Dict with 'chat_history' key containing LangChain message objects
+        """
+        sid = session_id or self.session_id
+        if not sid:
+            return {"chat_history": []}
+        
+        messages = self.get_recent_messages(sid)
+        langchain_messages = []
+        
+        for msg in messages:
+            if msg['type'] == 'human':
+                langchain_messages.append(HumanMessage(content=msg['content']))
+            else:
+                langchain_messages.append(AIMessage(content=msg['content']))
+        
+        return {"chat_history": langchain_messages}
+    
+    def save_data_context(self, data_summary: str, columns: List[str],
+                          session_id: Optional[str] = None):
+        """
+        Save current data context (in-memory, per session)
+        
+        Args:
+            data_summary: Text summary of the dataset
+            columns: List of column names
+            session_id: Optional session ID
+        """
+        sid = session_id or self.session_id or "default"
+        self._data_context[sid] = {
+            "summary": data_summary,
+            "columns": columns
+        }
+    
+    def get_data_context(self, session_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """
+        Get saved data context
+        
+        Returns:
+            Dict with 'summary' and 'columns', or None
+        """
+        sid = session_id or self.session_id or "default"
+        return self._data_context.get(sid)
     
     def clear_session(self, session_id: str):
         """
@@ -190,6 +281,12 @@ class ChatMemoryManager:
             cursor.execute("DELETE FROM sessions WHERE session_id = ?", (session_id,))
             
             conn.commit()
+    
+    def clear_history(self, session_id: Optional[str] = None):
+        """Clear chat history (alias for clear_session)"""
+        sid = session_id or self.session_id
+        if sid:
+            self.clear_session(sid)
     
     def get_all_sessions(self) -> List[Dict[str, Any]]:
         """

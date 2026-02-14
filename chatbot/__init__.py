@@ -1,8 +1,8 @@
 """
 Chatbot Module for FINBOT v4
-Q&A system with memory and data analysis capabilities
+Enhanced Q&A system with RAG, tools, and memory
 """
 
-from .qa_chain import DataContextManager, DataQAChain
+from .qa_chain import DataContextManager, EnhancedQAChain
 
-__all__ = ['DataContextManager', 'DataQAChain']
+__all__ = ['DataContextManager', 'EnhancedQAChain']

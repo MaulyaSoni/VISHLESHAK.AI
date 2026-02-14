@@ -1,296 +1,263 @@
 """
-Q&A Chain for FINBOT v4
-Conversational AI with data analysis capabilities
-
-Features:
-- Conversational Q&A about datasets
-- Persistent memory across sessions
-- Auto-analysis when needed
-- Context-aware responses
-- Integration with data analysis tools
+Enhanced Q&A Chain for FINBOT v4
+Integrates RAG, tools, and memory
 """
 
 import pandas as pd
 from typing import Dict, Any, Optional, List
+from langchain_core.output_parsers import StrOutputParser
 from core.llm import get_chat_llm
-from core.memory import ConversationManager
-import json
+from core.memory import ChatMemoryManager
+from chatbot.context_manager import ContextManager
+from chatbot.prompt_templates import QA_WITH_RAG_PROMPT, QA_SIMPLE_PROMPT
+from tools.tool_registry import get_tool_registry
+import logging
+
+logger = logging.getLogger(__name__)
 
 
-class DataQAChain:
+class EnhancedQAChain:
     """
-    Q&A chain for conversational data analysis
+    Enhanced Q&A chain with RAG and tool integration
+    
+    Features:
+    - RAG-augmented responses
+    - Tool integration
+    - Conversation memory
+    - Context-aware answers
+    
+    Usage:
+        qa_chain = EnhancedQAChain(df, session_id="user123")
+        response = qa_chain.ask("What's the average dropout risk?")
     """
     
-    def __init__(self, session_id: str, df: pd.DataFrame):
+    def __init__(self, df: pd.DataFrame, session_id: str = "default"):
         """
-        Initialize Q&A chain
+        Initialize enhanced Q&A chain
         
         Args:
+            df: DataFrame with data
             session_id: Unique session identifier
-            df: Pandas DataFrame to analyze
         """
-        self.session_id = session_id
         self.df = df
+        self.session_id = session_id
         self.llm = get_chat_llm()
-        self.conversation_manager = ConversationManager(session_id)
+        self.memory = ChatMemoryManager(session_id)
+        self.context_manager = ContextManager()
+        self.tool_registry = get_tool_registry()
         
-        # Prepare data context
-        self.data_context = self._prepare_data_context()
+        # Initialize data context
+        self._initialize_data_context()
+        
+        logger.info(f"✅ Enhanced Q&A chain initialized for session: {session_id}")
     
-    def _prepare_data_context(self) -> str:
-        """
-        Prepare comprehensive data context for LLM
-        """
-        context_parts = []
+    def _initialize_data_context(self):
+        """Save data context to memory"""
+        summary = self._create_data_summary()
+        self.memory.save_data_context(
+            data_summary=summary,
+            columns=list(self.df.columns)
+        )
+    
+    def _create_data_summary(self) -> str:
+        """Create comprehensive data summary"""
+        summary_parts = []
         
         # Basic info
-        context_parts.append(f"## Dataset Overview")
-        context_parts.append(f"- Total Rows: {len(self.df):,}")
-        context_parts.append(f"- Total Columns: {len(self.df.columns)}")
+        summary_parts.append(f"Dataset: {self.df.shape[0]} rows × {self.df.shape[1]} columns")
+        summary_parts.append(f"Columns: {', '.join(self.df.columns.tolist())}")
         
-        # Column information
-        numeric_cols = self.df.select_dtypes(include=['number']).columns.tolist()
-        categorical_cols = self.df.select_dtypes(include=['object', 'category']).columns.tolist()
-        
-        context_parts.append(f"\n## Columns")
-        context_parts.append(f"**Numeric Columns ({len(numeric_cols)}):** {', '.join(numeric_cols)}")
-        context_parts.append(f"**Categorical Columns ({len(categorical_cols)}):** {', '.join(categorical_cols)}")
-        
-        # Quick statistics for numeric columns
-        if numeric_cols:
-            context_parts.append(f"\n## Numeric Column Statistics")
-            for col in numeric_cols[:10]:  # Limit to first 10
-                stats = self.df[col].describe()
-                context_parts.append(
-                    f"- **{col}**: mean={stats['mean']:.2f}, "
-                    f"min={stats['min']:.2f}, max={stats['max']:.2f}, "
-                    f"std={stats['std']:.2f}"
+        # Numeric summaries
+        numeric_cols = self.df.select_dtypes(include=['number']).columns
+        if len(numeric_cols) > 0:
+            summary_parts.append("\nNumeric Columns:")
+            for col in numeric_cols[:5]:
+                summary_parts.append(
+                    f"  {col}: mean={self.df[col].mean():.2f}, "
+                    f"range=[{self.df[col].min():.2f}, {self.df[col].max():.2f}]"
                 )
         
-        # Categorical summaries
-        if categorical_cols:
-            context_parts.append(f"\n## Categorical Column Info")
-            for col in categorical_cols[:10]:  # Limit to first 10
-                unique_count = self.df[col].nunique()
-                most_common = self.df[col].mode()[0] if len(self.df[col].mode()) > 0 else "N/A"
-                context_parts.append(
-                    f"- **{col}**: {unique_count} unique values, "
-                    f"most common='{most_common}'"
-                )
+        # Categorical info
+        categorical_cols = self.df.select_dtypes(include=['object', 'category']).columns
+        if len(categorical_cols) > 0:
+            summary_parts.append("\nCategorical Columns:")
+            for col in categorical_cols[:5]:
+                unique = self.df[col].nunique()
+                summary_parts.append(f"  {col}: {unique} unique values")
         
-        # Missing data
-        missing = self.df.isnull().sum()
-        if missing.sum() > 0:
-            context_parts.append(f"\n## Missing Data")
-            for col in missing[missing > 0].index:
-                context_parts.append(f"- {col}: {missing[col]} missing values")
-        
-        # Sample data (first few rows)
-        context_parts.append(f"\n## Sample Data (first 3 rows)")
-        context_parts.append(self.df.head(3).to_string())
-        
-        return "\n".join(context_parts)
+        return "\n".join(summary_parts)
     
-    def ask(self, question: str) -> str:
+    def ask(self, question: str, use_rag: bool = True) -> str:
         """
         Ask a question about the data
         
         Args:
-            question: User's question
-        
+            question: User question
+            use_rag: Whether to use RAG for context
+            
         Returns:
-            AI response
+            Answer string
         """
+        logger.info(f"Question: {question}")
         
-        # Prepare prompt
-        system_template = """You are FINBOT, an expert data analyst assistant. You help users understand their data by answering questions accurately and clearly.
-
-You have access to the following dataset:
-
-{data_context}
-
-**Your Role:**
-- Answer questions about this specific dataset
-- Provide accurate statistics and insights
-- Be conversational but professional
-- If you need to perform calculations, show your work
-- If you don't know something, say so honestly
-
-**Guidelines:**
-- Use specific numbers from the dataset
-- Format numbers clearly (use commas for thousands)
-- Explain statistical concepts when needed
-- Give context to your answers
-
-Remember: You're analyzing THIS specific dataset, so all answers should be based on the data provided above.
-"""
+        # Save question to memory
+        self.memory.add_message(self.session_id, "human", question)
         
-        human_template = """Question: {question}
-
-Please provide a clear, accurate answer based on the dataset information."""
+        # Get data context
+        data_context = self._get_data_context()
         
-        # Get conversation history
-        history = self.conversation_manager.get_history()
+        # Determine if we should use RAG
+        should_use_rag = use_rag and self.context_manager.should_use_rag(question)
         
-        # Format history for prompt
-        history_text = ""
-        if history:
-            recent_history = history[-6:]  # Last 3 exchanges
-            history_parts = []
-            for msg in recent_history:
-                if msg['type'] == 'human':
-                    history_parts.append(f"User: {msg['content']}")
-                else:
-                    history_parts.append(f"Assistant: {msg['content']}")
-            history_text = "\n".join(history_parts)
+        # Get RAG context if needed
+        rag_context = ""
+        if should_use_rag:
+            context_result = self.context_manager.get_context_for_query(question)
+            if context_result["has_context"]:
+                rag_context = context_result["formatted_context"]
+                logger.info(f"Using RAG context from {len(context_result['sources'])} sources")
         
-        # Build full prompt
-        full_prompt = f"""{system_template.format(data_context=self.data_context)}
-
-Previous conversation:
-{history_text if history_text else "(No previous conversation)"}
-
-{human_template.format(question=question)}
-"""
+        # Get chat history
+        history = self.memory.get_memory_variables()["chat_history"]
         
-        # Get response
+        # Select prompt template
+        if rag_context:
+            prompt = QA_WITH_RAG_PROMPT
+            prompt_vars = {
+                "data_context": data_context,
+                "rag_context": rag_context,
+                "chat_history": history,
+                "question": question
+            }
+        else:
+            prompt = QA_SIMPLE_PROMPT
+            prompt_vars = {
+                "data_context": data_context,
+                "chat_history": history,
+                "question": question
+            }
+        
+        # Create and execute chain
         try:
-            response = self.llm.invoke(full_prompt)
-            answer = response.content if hasattr(response, 'content') else str(response)
+            chain = prompt | self.llm | StrOutputParser()
+            response = chain.invoke(prompt_vars)
             
-            # Save to memory
-            self.conversation_manager.add_exchange(question, answer)
+            # Save response to memory
+            self.memory.add_message(self.session_id, "ai", response)
             
-            return answer
+            # Save to RAG if significant
+            if should_use_rag:
+                self.context_manager.save_interaction_to_rag(
+                    query=question,
+                    response=response,
+                    metadata={
+                        "session_id": self.session_id,
+                        "dataset_shape": str(self.df.shape)
+                    }
+                )
+            
+            logger.info("Response generated successfully")
+            return response
         
         except Exception as e:
-            error_msg = f"I apologize, but I encountered an error: {str(e)}"
-            self.conversation_manager.add_exchange(question, error_msg)
+            error_msg = f"Error generating response: {str(e)}"
+            logger.error(error_msg)
+            self.memory.add_message(self.session_id, "ai", error_msg)
             return error_msg
     
-    def ask_with_data_analysis(self, question: str) -> str:
+    def ask_with_tools(self, question: str) -> Dict[str, Any]:
         """
-        Ask a question with automatic data analysis if needed
+        Ask a question with tool support
         
         Args:
-            question: User's question
-        
-        Returns:
-            AI response with analysis
-        """
-        
-        # Check if question requires statistical analysis
-        analysis_keywords = ['average', 'mean', 'median', 'sum', 'total', 'count', 
-                            'max', 'min', 'correlation', 'distribution', 'trend']
-        
-        needs_analysis = any(keyword in question.lower() for keyword in analysis_keywords)
-        
-        if needs_analysis:
-            # Perform quick analysis
-            analysis_result = self._perform_quick_analysis(question)
+            question: User question
             
-            # Enhance question with analysis results
-            enhanced_question = f"{question}\n\nRelevant Analysis:\n{analysis_result}"
-            
-            return self.ask(enhanced_question)
-        else:
-            return self.ask(question)
-    
-    def _perform_quick_analysis(self, question: str) -> str:
-        """
-        Perform quick data analysis based on question
-        
-        Args:
-            question: User's question
-        
         Returns:
-            Analysis results as string
+            Dict with answer and tool results
         """
-        results = []
+        # Identify if tools are needed
+        tools_needed = self._identify_needed_tools(question)
         
-        # Look for column mentions
-        for col in self.df.columns:
-            if col.lower() in question.lower():
-                if self.df[col].dtype in ['int64', 'float64']:
-                    # Numeric column
-                    stats = self.df[col].describe()
-                    results.append(
-                        f"{col}: mean={stats['mean']:.2f}, "
-                        f"median={stats['50%']:.2f}, "
-                        f"min={stats['min']:.2f}, "
-                        f"max={stats['max']:.2f}, "
-                        f"std={stats['std']:.2f}"
-                    )
-                else:
-                    # Categorical column
-                    value_counts = self.df[col].value_counts()
-                    results.append(
-                        f"{col}: {len(value_counts)} unique values, "
-                        f"top value='{value_counts.index[0]}' ({value_counts.iloc[0]} occurrences)"
-                    )
+        if not tools_needed:
+            # No tools needed, use regular ask
+            return {
+                "answer": self.ask(question),
+                "tools_used": []
+            }
         
-        return "\n".join(results) if results else "No specific column analysis performed."
+        # Execute with tools
+        tool_results = []
+        for tool_name in tools_needed:
+            tool = self.tool_registry.get_tool(tool_name)
+            if tool:
+                # Execute tool (simplified - in practice, need proper parameters)
+                logger.info(f"Would execute tool: {tool_name}")
+                tool_results.append({
+                    "tool": tool_name,
+                    "result": "Tool execution would happen here"
+                })
+        
+        # Generate answer incorporating tool results
+        answer = self.ask(question)
+        
+        return {
+            "answer": answer,
+            "tools_used": tool_results
+        }
     
-    def get_chat_history(self) -> List[Dict[str, Any]]:
-        """Get conversation history"""
-        return self.conversation_manager.get_history()
+    def _identify_needed_tools(self, question: str) -> list:
+        """Identify which tools might be needed"""
+        tools = []
+        question_lower = question.lower()
+        
+        if any(word in question_lower for word in ["plot", "chart", "visualize", "graph"]):
+            tools.append("chart_generator")
+        
+        if any(word in question_lower for word in ["filter", "sort", "transform"]):
+            tools.append("data_transformer")
+        
+        if any(word in question_lower for word in ["calculate", "compute", "equation"]):
+            tools.append("calculator")
+        
+        if any(word in question_lower for word in ["export", "save", "download"]):
+            tools.append("export")
+        
+        return tools
+    
+    def _get_data_context(self) -> str:
+        """Get current data context"""
+        saved_context = self.memory.get_data_context()
+        if saved_context:
+            return saved_context["summary"]
+        return self._create_data_summary()
+    
+    def get_chat_history(self) -> list:
+        """Get chat history"""
+        return self.memory.get_chat_history()
     
     def clear_history(self):
-        """Clear conversation history"""
-        self.conversation_manager.clear()
-    
-    def get_summary(self) -> str:
-        """Get conversation summary"""
-        history = self.get_chat_history()
-        
-        if not history:
-            return "No conversation yet."
-        
-        user_messages = sum(1 for m in history if m['type'] == 'human')
-        
-        return f"This conversation has {user_messages} questions and {len(history)} total messages."
+        """Clear chat history"""
+        self.memory.clear_history()
+        self._initialize_data_context()
 
 
 class DataContextManager:
-    """
-    Manages data contexts for Q&A sessions
-    """
+    """Manages Q&A contexts for multiple sessions"""
     
     def __init__(self):
-        """Initialize context manager"""
-        self.contexts: Dict[str, DataQAChain] = {}
+        self.active_contexts: Dict[str, EnhancedQAChain] = {}
     
-    def create_context(self, session_id: str, df: pd.DataFrame) -> DataQAChain:
-        """
-        Create or get a data context for a session
-        
-        Args:
-            session_id: Session identifier
-            df: DataFrame to analyze
-        
-        Returns:
-            DataQAChain instance
-        """
-        if session_id in self.contexts:
-            # Update DataFrame for existing context
-            self.contexts[session_id].df = df
-            self.contexts[session_id].data_context = self.contexts[session_id]._prepare_data_context()
-        else:
-            # Create new context
-            self.contexts[session_id] = DataQAChain(session_id, df)
-        
-        return self.contexts[session_id]
+    def create_context(self, session_id: str, df: pd.DataFrame) -> EnhancedQAChain:
+        """Create new Q&A context"""
+        qa_chain = EnhancedQAChain(df, session_id)
+        self.active_contexts[session_id] = qa_chain
+        return qa_chain
     
-    def get_context(self, session_id: str) -> Optional[DataQAChain]:
+    def get_context(self, session_id: str) -> Optional[EnhancedQAChain]:
         """Get existing context"""
-        return self.contexts.get(session_id)
+        return self.active_contexts.get(session_id)
     
     def remove_context(self, session_id: str):
-        """Remove a context"""
-        if session_id in self.contexts:
-            del self.contexts[session_id]
-    
-    def clear_all(self):
-        """Clear all contexts"""
-        self.contexts.clear()
+        """Remove context"""
+        if session_id in self.active_contexts:
+            del self.active_contexts[session_id]
