@@ -3,7 +3,7 @@ FINBOT v4 - Advanced Data Intelligence Platform
 Main Streamlit Application
 
 Author: FINBOT Team
-Version: 5.0.0 (Phase 1: RAG & Tools)
+Version: 4.0.0 (Phase 1: RAG & Tools)
 """
 
 # Force torch to load first (fixes Windows DLL initialization with Streamlit)
@@ -15,12 +15,101 @@ import os
 import logging
 from config import settings
 from utils.data_loader import DataLoader
+from utils.helpers import handle_error, print_startup_summary, clean_dataframe_display
 from analyzers.insight_generator import InsightGenerator
 from chatbot.qa_chain import EnhancedQAChain, DataContextManager
+# ============================================================================
+# SUPPRESS NOISY WARNINGS
+# ============================================================================
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+import warnings
+
+# Suppress specific warnings
+warnings.filterwarnings('ignore', message='.*torch.classes.*')
+warnings.filterwarnings('ignore', message='.*Arrow table.*')
+warnings.filterwarnings('ignore', category=FutureWarning)
+warnings.filterwarnings('ignore', category=UserWarning, module='streamlit')
+
+# Reduce httpx logging noise
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
+
+# Set environment variables to reduce noise
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+os.environ["STREAMLIT_SERVER_FILE_WATCHER_TYPE"] = "none"
+# # Configure logging
+# logging.basicConfig(level=logging.INFO)
+# logger = logging.getLogger(__name__)
+# ============================================================================
+# LOGGING CONFIGURATION
+# ============================================================================
+
+# Custom logging format for cleaner output
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s | %(levelname)-8s | %(name)-20s | %(message)s',
+    datefmt='%H:%M:%S'  # Just show time, not full date
+)
+
+# Create console handler with color (optional)
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+
+# Formatter with clean output
+formatter = logging.Formatter(
+    '%(asctime)s | %(levelname)-8s | %(message)s',
+    datefmt='%H:%M:%S'
+)
+console_handler.setFormatter(formatter)
+
+# Get root logger and update
 logger = logging.getLogger(__name__)
+
+
+def initialize_app():
+    """Initialize application on first run"""
+    if 'initialized' not in st.session_state:
+        
+        # Show progress
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        status_text.text("🔄 Initializing FINBOT v4...")
+        progress_bar.progress(20)
+        
+        # Initialize knowledge base
+        try:
+            status_text.text("📚 Loading knowledge base...")
+            kb_manager = get_knowledge_base_manager()
+            if rag_config.AUTO_LOAD_KNOWLEDGE:
+                kb_manager.create_default_knowledge()
+                results = kb_manager.load_all_knowledge()
+            progress_bar.progress(60)
+        except Exception as e:
+            logger.warning(f"Could not load knowledge base: {e}")
+        
+        # Initialize tools
+        try:
+            status_text.text("🛠️ Loading tools...")
+            tool_registry = get_tool_registry()
+            tools_list = tool_registry.list_tools()
+            progress_bar.progress(80)
+        except Exception as e:
+            logger.warning(f"Could not load tools: {e}")
+        
+        status_text.text("✅ Ready!")
+        progress_bar.progress(100)
+        
+        # Clear progress indicators
+        import time
+        time.sleep(0.5)
+        progress_bar.empty()
+        status_text.empty()
+        
+        st.session_state.initialized = True
+        logger.info("✅ FINBOT v4 initialized")
+
 
 # Page configuration
 st.set_page_config(
@@ -113,6 +202,10 @@ if 'session_id' not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())
 if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
+if 'initialized' not in st.session_state:
+    # Print startup summary to console
+    print_startup_summary(st.session_state.session_id)
+    st.session_state.initialized = True
 
 # Header
 st.markdown('<h1 class="main-header">🤖 FINBOT v4</h1>', unsafe_allow_html=True)
@@ -141,6 +234,9 @@ with st.sidebar:
         if error:
             st.error(f"❌ {error}")
         else:
+            # Clean DataFrame to avoid Arrow warnings
+            df = DataLoader.clean_dataframe_for_streamlit(df)
+            
             if st.session_state.data is None or not df.equals(st.session_state.data):
                 st.session_state.data = df
                 # Reset QA chain when new data is loaded
@@ -217,7 +313,7 @@ else:
         
         # Show data preview
         with st.expander("👁️ Preview Data", expanded=False):
-            st.dataframe(st.session_state.data.head(10), use_container_width=True)
+            clean_dataframe_display(st.session_state.data)
         
         # Analyze button
         if st.button("🚀 Analyze Data", type="primary", use_container_width=True):
@@ -227,10 +323,10 @@ else:
                     generator = InsightGenerator(st.session_state.data)
                     result = generator.generate_comprehensive_insights()
                     st.session_state.analysis_result = result
-                    st.success("✅ Analysis complete!")
+                    st.success("✅ Analysis complete!" )
+                    st.info("💡 Tip: Switch to RAG Chatbot mode to ask questions about this analysis")
                 except Exception as e:
-                    st.error(f"❌ Analysis failed: {str(e)}")
-                    logger.error(f"Analysis error: {e}")
+                    handle_error(e, "Data Analysis")
         
         # Display results
         if st.session_state.analysis_result:
@@ -270,15 +366,21 @@ else:
         
         # Initialize QA chain
         if st.session_state.qa_chain is None:
-            with st.spinner("Initializing RAG System & Tools..."):
+            with st.status("Initializing RAG System...", expanded=True) as status:
                 try:
+                    status.write("📚 Loading knowledge base...")
+                    status.write("🛠️ Initializing tools...")
+                    status.write("🧠 Setting up AI assistant...")
+                    
                     st.session_state.qa_chain = EnhancedQAChain(
                         df=st.session_state.data,
                         session_id=st.session_state.session_id
                     )
-                    st.success("✅ Assistant Ready!")
+                    
+                    status.update(label="✅ Assistant Ready!", state="complete")
                 except Exception as e:
-                    st.error(f"Failed to initialize QA Chain: {e}")
+                    status.update(label="❌ Initialization Failed", state="error")
+                    handle_error(e, "QA Chain Initialization")
         
         # Chat interface
         chat_container = st.container()
@@ -312,10 +414,17 @@ else:
             # Add user message
             st.session_state.chat_history.append(("user", user_input))
             
-            with st.spinner("🤔 Analyzing context & querying knowledge base..."):
+            # Better loading indicators
+            with st.status("Processing your question...", expanded=False) as status:
                 try:
+                    status.write("🔍 Analyzing your question...")
+                    status.write("📚 Searching knowledge base...")
+                    status.write("🧠 Generating insights...")
+                    
                     # Get response from RAG chain
                     response = st.session_state.qa_chain.ask(user_input)
+                    
+                    status.update(label="✅ Response generated", state="complete")
                     
                     # Add bot message
                     st.session_state.chat_history.append(("bot", response))
@@ -324,7 +433,8 @@ else:
                     st.rerun()
                     
                 except Exception as e:
-                    st.error(f"Error generating response: {e}")
+                    status.update(label="❌ Error occurred", state="error")
+                    handle_error(e, "Question Processing")
         
         # RAG Context Debugger
         with st.expander("🕵️ Debug: View Retrieved Context"):
@@ -333,6 +443,7 @@ else:
             else:
                 st.info("Ask a question to see retrieved RAG context.")
 
+
 # Footer
 st.markdown("---")
 st.markdown("""
@@ -340,3 +451,4 @@ st.markdown("""
     FINBOT v4.0.0 | Phase 1: RAG Infrastructure & Agentic Tools
 </div>
 """, unsafe_allow_html=True)
+

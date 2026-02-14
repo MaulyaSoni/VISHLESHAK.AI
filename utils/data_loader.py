@@ -161,3 +161,27 @@ class DataLoader:
             'memory_usage_mb': df.memory_usage(deep=True).sum() / (1024 * 1024),
             'column_names': df.columns.tolist()
         }
+    
+    @staticmethod
+    def clean_dataframe_for_streamlit(df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Clean DataFrame to avoid Arrow serialization warnings
+        
+        Args:
+            df: Input DataFrame
+            
+        Returns:
+            Cleaned DataFrame
+        """
+        df = df.copy()
+        
+        # Fix object columns that might cause issues
+        for col in df.select_dtypes(include=['object']).columns:
+            # Convert mixed types to string
+            df[col] = df[col].astype(str)
+        
+        # Fix index if it causes issues
+        if df.index.name == 'Row Labels' or 'Row Labels' in df.columns:
+            df = df.reset_index(drop=True)
+        
+        return df
