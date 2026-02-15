@@ -1,15 +1,17 @@
 """
 Enhanced Q&A Chain for FINBOT v4
-Integrates RAG, tools, and memory
+Integrates RAG, tools, memory, and Phase 3 quality learning
 """
 
 import pandas as pd
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Union
 from langchain_core.output_parsers import StrOutputParser
 from core.llm import get_chat_llm
 from core.memory import ChatMemoryManager
 from chatbot.context_manager import ContextManager
 from chatbot.prompt_templates import QA_WITH_RAG_PROMPT, QA_SIMPLE_PROMPT
+from chatbot.improvement_loop import get_improvement_loop
+from chatbot.feedback_collector import FeedbackType
 from tools.tool_registry import get_tool_registry
 import logging
 
@@ -45,11 +47,16 @@ class EnhancedQAChain:
         self.memory = ChatMemoryManager(session_id)
         self.context_manager = ContextManager()
         self.tool_registry = get_tool_registry()
+        self.improvement_loop = get_improvement_loop()  # Phase 3 integration
+        
+        # Track message IDs for feedback correlation
+        self._message_counter = 0
+        self._last_message_id = None
         
         # Initialize data context
         self._initialize_data_context()
         
-        logger.info(f"✅ Enhanced Q&A chain initialized for session: {session_id}")
+        logger.info(f"✅ Enhanced Q&A chain initialized for session: {session_id} (with Phase 3 Quality Learning)")
     
     def _initialize_data_context(self):
         """Save data context to memory"""
@@ -87,18 +94,25 @@ class EnhancedQAChain:
         
         return "\n".join(summary_parts)
     
-    def ask(self, question: str, use_rag: bool = True) -> str:
+    def ask(self, question: str, use_rag: bool = True, return_dict: bool = False) -> Union[str, Dict[str, Any]]:
         """
         Ask a question about the data
         
         Args:
             question: User question
             use_rag: Whether to use RAG for context
+            return_dict: If True, returns dict with quality info; if False, returns just the formatted response
             
         Returns:
-            Answer string
+            If return_dict=False: Formatted response string (default for backward compatibility)
+            If return_dict=True: Dict with formatted_response, quality_score, message_id, etc.
         """
         logger.info(f"Question: {question}")
+        
+        # Increment message ID
+        self._message_counter += 1
+        message_id = self._message_counter
+        self._last_message_id = message_id
         
         # Save question to memory
         self.memory.add_message(self.session_id, "human", question)
@@ -140,30 +154,178 @@ class EnhancedQAChain:
         # Create and execute chain
         try:
             chain = prompt | self.llm | StrOutputParser()
-            response = chain.invoke(prompt_vars)
+            raw_response = chain.invoke(prompt_vars)
             
-            # Save response to memory
-            self.memory.add_message(self.session_id, "ai", response)
+            # ===== PHASE 3 INTEGRATION: Process through improvement loop =====
+            improvement_result = self.improvement_loop.process_response(
+                question=question,
+                response=raw_response,
+                user_id=self.session_id,  # Use session_id as user_id
+                session_id=self.session_id,
+                message_id=message_id,
+                data_context=data_context,
+                question_type="analytical"  # Can be enhanced to auto-detect
+            )
+            
+            formatted_response = improvement_result["formatted_response"]
+            quality_score = improvement_result["quality_score"]
+            # ==================================================================
+            
+            # Save formatted response to memory
+            self.memory.add_message(self.session_id, "ai", formatted_response)
             
             # Save to RAG if significant
             if should_use_rag:
                 self.context_manager.save_interaction_to_rag(
                     query=question,
-                    response=response,
+                    response=formatted_response,
                     metadata={
                         "session_id": self.session_id,
-                        "dataset_shape": str(self.df.shape)
+                        "dataset_shape": str(self.df.shape),
+                        "quality_score": quality_score.overall_score,
+                        "quality_grade": quality_score.get_grade()
                     }
                 )
             
-            logger.info("Response generated successfully")
-            return response
+            logger.info(f"Response generated (Quality: {quality_score.overall_score:.1f}/100, Grade: {quality_score.get_grade()})")
+            
+            # Return based on return_dict flag
+            if return_dict:
+                return improvement_result
+            else:
+                return formatted_response  # Backward compatibility
         
         except Exception as e:
             error_msg = f"Error generating response: {str(e)}"
             logger.error(error_msg)
             self.memory.add_message(self.session_id, "ai", error_msg)
-            return error_msg
+            
+            if return_dict:
+                return {
+                    "formatted_response": error_msg,
+                    "quality_score": None,
+                    "message_id": message_id,
+                    "error": True
+                }
+            else:
+                return error_msg
+    
+    def provide_feedback(
+        self, 
+        feedback_type: str, 
+        feedback_value: Optional[int] = None,
+        message_id: Optional[int] = None,
+        comment: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Provide feedback on the last (or specified) response
+        
+        Phase 3 Integration: Feedback triggers preference learning
+        
+        Args:
+            feedback_type: Type of feedback - "thumbs_up", "thumbs_down", "rating", "comment"
+            feedback_value: Numeric value (1 for thumbs_up, -1 for thumbs_down, 1-5 for rating)
+            message_id: Specific message ID to provide feedback for (defaults to last message)
+            comment: Optional text comment
+            
+        Returns:
+            Dict with feedback confirmation and learning status
+            
+        Examples:
+            qa_chain.provide_feedback("thumbs_up")
+            qa_chain.provide_feedback("rating", feedback_value=4)
+            qa_chain.provide_feedback("comment", comment="Great analysis!")
+        """
+        # Use last message if not specified
+        target_message_id = message_id or self._last_message_id
+        
+        if target_message_id is None:
+            return {
+                "success": False,
+                "error": "No message to provide feedback for"
+            }
+        
+        # Convert feedback_type string to enum
+        try:
+            if feedback_type == "thumbs_up":
+                fb_type = FeedbackType.THUMBS_UP
+                fb_value = 1 if feedback_value is None else feedback_value
+            elif feedback_type == "thumbs_down":
+                fb_type = FeedbackType.THUMBS_DOWN
+                fb_value = -1 if feedback_value is None else feedback_value
+            elif feedback_type == "rating":
+                fb_type = FeedbackType.RATING
+                fb_value = feedback_value or 3
+            elif feedback_type == "comment":
+                fb_type = FeedbackType.COMMENT
+                fb_value = 0
+            else:
+                return {
+                    "success": False,
+                    "error": f"Unknown feedback type: {feedback_type}"
+                }
+        except Exception as e:
+            logger.error(f"Error processing feedback type: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+        
+        # Get the question and response from memory
+        chat_history = self.memory.get_chat_history()
+        
+        # Find the corresponding Q&A pair
+        # Messages are stored alternately (human, ai, human, ai...)
+        # For message_id N, we need the N-th exchange
+        if len(chat_history) >= target_message_id * 2:
+            question_text = chat_history[target_message_id * 2 - 2]["content"]
+            response_text = chat_history[target_message_id * 2 - 1]["content"]
+        else:
+            logger.warning(f"Could not find message {target_message_id} in history")
+            question_text = "Unknown"
+            response_text = "Unknown"
+        
+        # Trigger Phase 3 feedback handling
+        try:
+            self.improvement_loop.handle_feedback(
+                user_id=self.session_id,
+                session_id=self.session_id,
+                message_id=target_message_id,
+                feedback_type=fb_type,
+                feedback_value=fb_value,
+                comment=comment,
+                question_text=question_text,
+                response_text=response_text,
+                response_metadata={
+                    "response_length": len(response_text),
+                    "question_length": len(question_text)
+                }
+            )
+            
+            logger.info(f"Feedback processed: {feedback_type} for message {target_message_id}")
+            
+            return {
+                "success": True,
+                "feedback_type": feedback_type,
+                "message_id": target_message_id,
+                "learning_triggered": True
+            }
+        
+        except Exception as e:
+            logger.error(f"Error handling feedback: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    def get_quality_metrics(self) -> Dict[str, Any]:
+        """
+        Get quality and improvement metrics
+        
+        Returns:
+            Dict with quality trends and learning progress
+        """
+        return self.improvement_loop.get_improvement_metrics()
     
     def ask_with_tools(self, question: str) -> Dict[str, Any]:
         """

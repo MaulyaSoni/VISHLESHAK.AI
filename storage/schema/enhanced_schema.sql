@@ -260,3 +260,122 @@ ON semantic_memory(user_id, memory_type, confidence DESC);
 
 CREATE INDEX IF NOT EXISTS idx_episodic_importance_time
 ON episodic_memory(importance_score DESC, created_at DESC);
+
+-- ============================================================================
+-- PHASE 3: QUALITY SCORING & CONTINUOUS IMPROVEMENT
+-- ============================================================================
+
+-- 9. QUALITY SCORES (NEW - Phase 3)
+-- Stores multi-dimensional quality evaluations of responses
+CREATE TABLE IF NOT EXISTS quality_scores (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    message_id INTEGER NOT NULL,       -- References conversations.id
+    
+    -- Overall quality
+    overall_score FLOAT NOT NULL,       -- 0-100
+    grade TEXT,                         -- 'A', 'B', 'C', 'D', 'F'
+    
+    -- Dimension scores (0-10 each)
+    relevance_score FLOAT,
+    accuracy_score FLOAT,
+    completeness_score FLOAT,
+    clarity_score FLOAT,
+    conciseness_score FLOAT,
+    actionability_score FLOAT,
+    formatting_score FLOAT,
+    professionalism_score FLOAT,
+    
+    -- Qualitative feedback
+    strengths TEXT,                     -- JSON array
+    weaknesses TEXT,                    -- JSON array
+    suggestions TEXT,                   -- JSON array
+    
+    -- Context
+    question_type TEXT,                 -- 'analytical', 'factual', 'conversational'
+    
+    -- Temporal
+    evaluated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_quality_message ON quality_scores(message_id);
+CREATE INDEX IF NOT EXISTS idx_quality_score ON quality_scores(overall_score DESC);
+CREATE INDEX IF NOT EXISTS idx_quality_user ON quality_scores(user_id);
+
+-- 10. IMPROVEMENT METRICS (NEW - Phase 3)
+-- Tracks system improvement over time
+CREATE TABLE IF NOT EXISTS improvement_metrics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    
+    -- Cycle information
+    cycle_number INTEGER NOT NULL,
+    
+    -- Quality metrics
+    avg_quality_score FLOAT,
+    quality_trend TEXT,                 -- 'improving', 'declining', 'stable'
+    
+    -- Feedback metrics
+    total_feedback_count INTEGER,
+    positive_feedback_ratio FLOAT,
+    
+    -- Learning metrics
+    preferences_learned INTEGER,
+    avg_preference_confidence FLOAT,
+    
+    -- Performance
+    total_conversations INTEGER,
+    
+    -- Temporal
+    measured_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_improvement_user ON improvement_metrics(user_id);
+CREATE INDEX IF NOT EXISTS idx_improvement_cycle ON improvement_metrics(cycle_number);
+
+-- ============================================================================
+-- PHASE 3 VIEWS
+-- ============================================================================
+
+-- View: Quality trends over time
+CREATE VIEW IF NOT EXISTS quality_trends AS
+SELECT 
+    user_id,
+    DATE(evaluated_at) as evaluation_date,
+    COUNT(*) as evaluations_count,
+    AVG(overall_score) as avg_score,
+    MAX(overall_score) as best_score,
+    MIN(overall_score) as worst_score,
+    AVG(relevance_score) as avg_relevance,
+    AVG(accuracy_score) as avg_accuracy,
+    AVG(clarity_score) as avg_clarity
+FROM quality_scores
+GROUP BY user_id, DATE(evaluated_at)
+ORDER BY evaluation_date DESC;
+
+-- View: Feedback summary
+CREATE VIEW IF NOT EXISTS feedback_summary AS
+SELECT 
+    user_id,
+    feedback_type,
+    COUNT(*) as feedback_count,
+    AVG(feedback_value) as avg_value,
+    DATE(created_at) as feedback_date
+FROM feedback_log
+GROUP BY user_id, feedback_type, DATE(created_at)
+ORDER BY feedback_date DESC;
+
+-- View: Active preferences
+CREATE VIEW IF NOT EXISTS active_preferences AS
+SELECT 
+    user_id,
+    preference_category,
+    preference_key,
+    preference_value,
+    confidence,
+    evidence_count
+FROM user_preferences
+WHERE confidence >= 0.7
+ORDER BY user_id, preference_category, confidence DESC;

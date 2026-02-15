@@ -3,11 +3,14 @@ FINBOT v4 - Advanced Data Intelligence Platform
 Main Streamlit Application
 
 Author: FINBOT Team
-Version: 4.0.0 (Phase 1: RAG & Tools)
+Version: 4.0.0 (All 3 Phases: Memory + Reasoning + Learning)
 """
 
 # Force torch to load first (fixes Windows DLL initialization with Streamlit)
-import torch
+try:
+    import torch
+except Exception:
+    pass  # Torch optional - embeddings will load it properly
 
 import streamlit as st
 import pandas as pd
@@ -268,13 +271,55 @@ with st.sidebar:
         st.session_state.chat_history = []
         st.rerun()
     
+    # Quality Metrics (Phase 3)
+    if st.session_state.mode == "Q&A" and st.session_state.qa_chain:
+        st.markdown("---")
+        st.markdown("### 📊 Quality Metrics")
+        
+        try:
+            metrics = st.session_state.qa_chain.get_quality_metrics()
+            
+            if metrics.get('total_cycles', 0) > 0:
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.metric(
+                        "Responses", 
+                        metrics['total_cycles'],
+                        help="Total responses generated"
+                    )
+                
+                with col2:
+                    avg_quality = metrics.get('avg_quality_all_time', 0)
+                    st.metric(
+                        "Avg Quality", 
+                        f"{avg_quality:.0f}/100",
+                        help="Overall quality score"
+                    )
+                
+                # Trend indicator
+                trend = metrics.get('trend_direction', 'unknown')
+                trend_emoji = {
+                    'improving': '📈 Improving',
+                    'stable': '➡️ Stable',
+                    'declining': '📉 Needs work'
+                }.get(trend, '⏳ Learning...')
+                
+                st.caption(f"Trend: {trend_emoji}")
+            else:
+                st.info("📝 Chat to see quality metrics")
+        except Exception as e:
+            st.caption("Metrics unavailable")
+    
     # About
     st.markdown("---")
     st.markdown("""
     ### ℹ️ New in v4
-    - 📚 **RAG Knowledge Base**: Uses historical analyses and domain knowledge
-    - 🛠️ **Smart Tools**: Python REPL, Chart Generator, Calendar
-    - 🧠 **Context Awareness**: Remembers conversation history
+    - 🧠 **Phase 1**: Multi-tiered memory system
+    - 🔍 **Phase 2**: Chain-of-thought reasoning  
+    - 📊 **Phase 3**: Quality scoring & learning
+    - 📚 **RAG**: Knowledge base integration
+    - 🛠️ **Tools**: Charts, calculations, exports
     """)
 
 # Main content area
@@ -379,23 +424,62 @@ else:
                     status.update(label="✅ Assistant Ready!", state="complete")
                 except Exception as e:
                     status.update(label="❌ Initialization Failed", state="error")
-                    handle_error(e, "QA Chain Initialization")
+                    st.error(f"❌ QA Chain Initialization: {str(e)}")
+                    logger.error(f"QA Chain init error: {e}", exc_info=True)
         
         # Chat interface
         chat_container = st.container()
         
-        # Display chat history from session state
+        # Display chat history from session state  
         with chat_container:
-            for role, content in st.session_state.chat_history:
+            for idx, msg in enumerate(st.session_state.chat_history):
+                # Handle both old format (role, content) and new format (role, content, metadata)
+                if len(msg) == 2:
+                    role, content = msg
+                    metadata = None
+                else:
+                    role, content, metadata = msg
+                
                 css_class = "user-message" if role == "user" else "bot-message"
                 name = "👤 You" if role == "user" else "🤖 FINBOT"
                 
+                # Display message
                 st.markdown(f"""
                 <div class="chat-message {css_class}">
                     <strong>{name}:</strong><br>
                     {content}
                 </div>
                 """, unsafe_allow_html=True)
+                
+                # Show quality indicator and feedback buttons for bot messages with Phase 3 metadata
+                if role == "bot" and metadata and 'quality_score' in metadata:
+                    col1, col2, col3, col4, col5 = st.columns([1, 1, 1, 1, 6])
+                    
+                    # Display quality badge
+                    grade = metadata.get('quality_grade', 'N/A')
+                    score = metadata.get('quality_score', 0)
+                    grade_color = {
+                        'A': '🟢', 'B': '🟦', 'C': '🟡', 'D': '🟠', 'F': '🔴'
+                    }.get(grade, '⚪')
+                    
+                    with col1:
+                        st.caption(f"{grade_color} Grade: {grade}")
+                    with col2:
+                        st.caption(f"📊 {score:.0f}/100")
+                    
+                    # Feedback buttons
+                    message_id = metadata.get('message_id', idx)
+                    feedback_key_base = f"feedback_{message_id}"
+                    
+                    with col3:
+                        if st.button("👍", key=f"{feedback_key_base}_up", help="Good response"):
+                            st.session_state.qa_chain.provide_feedback("thumbs_up", message_id=message_id)
+                            st.success("Thanks for the feedback!", icon="✅")
+                    
+                    with col4:
+                        if st.button("👎", key=f"{feedback_key_base}_down", help="Needs improvement"):
+                            st.session_state.qa_chain.provide_feedback("thumbs_down", message_id=message_id)
+                            st.info("Feedback noted. I'll try to improve!", icon="📝")
         
         # Input area
         with st.form(key="chat_form"):
@@ -419,14 +503,27 @@ else:
                     status.write("🔍 Analyzing your question...")
                     status.write("📚 Searching knowledge base...")
                     status.write("🧠 Generating insights...")
+                    status.write("📊 Evaluating quality (Phase 3)...")
                     
-                    # Get response from RAG chain
-                    response = st.session_state.qa_chain.ask(user_input)
+                    # Get response from Q&A chain with Phase 3 quality evaluation
+                    result = st.session_state.qa_chain.ask(user_input, return_dict=True)
                     
-                    status.update(label="✅ Response generated", state="complete")
+                    response = result['formatted_response']
+                    quality_score = result['quality_score']
+                    message_id = result.get('cycle_number', len(st.session_state.chat_history) + 1)
                     
-                    # Add bot message
-                    st.session_state.chat_history.append(("bot", response))
+                    status.update(label=f"✅ Response generated (Quality: {quality_score.overall_score:.0f}/100, Grade: {quality_score.get_grade()})", state="complete")
+                    
+                    # Add bot message with quality metadata
+                    st.session_state.chat_history.append((
+                        "bot", 
+                        response,
+                        {
+                            "quality_score": quality_score.overall_score,
+                            "quality_grade": quality_score.get_grade(),
+                            "message_id": message_id
+                        }
+                    ))
                     
                     # Rerender to show new messages
                     st.rerun()
@@ -447,7 +544,7 @@ else:
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; color: #94a3b8; font-size: 0.8rem;">
-    FINBOT v4.0.0 | Phase 1: RAG Infrastructure & Agentic Tools
+    FINBOT v4.0.0 | All 3 Phases Operational: Memory + Reasoning + Learning 🚀
 </div>
 """, unsafe_allow_html=True)
 
