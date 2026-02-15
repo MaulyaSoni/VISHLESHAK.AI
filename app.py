@@ -20,8 +20,7 @@ from analyzers.insight_generator import InsightGenerator
 from chatbot.qa_chain import EnhancedQAChain, DataContextManager
 # ============================================================================
 # SUPPRESS NOISY WARNINGS
-# ============================================================================
-
+# ============================================================
 import warnings
 
 # Suppress specific warnings
