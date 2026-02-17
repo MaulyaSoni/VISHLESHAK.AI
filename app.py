@@ -21,6 +21,7 @@ from utils.data_loader import DataLoader
 from utils.helpers import handle_error, print_startup_summary, clean_dataframe_display
 from analyzers.insight_generator import InsightGenerator
 from chatbot.qa_chain import EnhancedQAChain, DataContextManager
+from utils.dashboard_visualizer import DashboardVisualizer
 # ============================================================================
 # SUPPRESS NOISY WARNINGS
 # ============================================================
@@ -187,6 +188,38 @@ st.markdown("""
         opacity: 0.9;
         transform: translateY(-1px);
     }
+    /* Full screen optimization */
+    .main .block-container {
+        max-width: 100%;
+        padding-top: 1rem;
+        padding-bottom: 1rem;
+    }
+    section.main > div {
+        padding-top: 0;
+    }
+    /* Remove any blocking overlays */
+    [data-testid="stSidebar"] {
+        z-index: 999;
+    }
+    /* Ensure smooth scrolling */
+    html {
+        scroll-behavior: smooth;
+    }
+    /* Dashboard cards */
+    .dashboard-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 0.75rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        margin: 1rem 0;
+    }
+    /* Hide Streamlit default elements that might block */
+    .reportview-container .main .block-container {
+        max-width: 100%;
+    }
+    iframe {
+        border: none;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -195,6 +228,8 @@ if 'data' not in st.session_state:
     st.session_state.data = None
 if 'analysis_result' not in st.session_state:
     st.session_state.analysis_result = None
+if 'show_visuals' not in st.session_state:
+    st.session_state.show_visuals = False
 if 'mode' not in st.session_state:
     st.session_state.mode = "Analysis"
 if 'qa_chain' not in st.session_state:
@@ -243,6 +278,8 @@ with st.sidebar:
                 st.session_state.data = df
                 # Reset QA chain when new data is loaded
                 st.session_state.qa_chain = None
+                st.session_state.analysis_result = None
+                st.session_state.show_visuals = False
                 st.success(f"✅ Loaded {len(df):,} rows × {len(df.columns)} columns")
             
             # Show basic info
@@ -269,6 +306,7 @@ with st.sidebar:
         st.session_state.analysis_result = None
         st.session_state.qa_chain = None
         st.session_state.chat_history = []
+        st.session_state.show_visuals = False
         st.rerun()
     
     # Quality Metrics (Phase 3)
@@ -359,18 +397,27 @@ else:
         with st.expander("👁️ Preview Data", expanded=False):
             clean_dataframe_display(st.session_state.data)
         
-        # Analyze button
-        if st.button("🚀 Analyze Data", type="primary", use_container_width=True):
-            with st.spinner("🔍 Running Insight Generator... (This usually takes 10-20 seconds)"):
-                try:
-                    # Generate insights using the existing analyzer
-                    generator = InsightGenerator(st.session_state.data)
-                    result = generator.generate_comprehensive_insights()
-                    st.session_state.analysis_result = result
-                    st.success("✅ Analysis complete!" )
-                    st.info("💡 Tip: Switch to RAG Chatbot mode to ask questions about this analysis")
-                except Exception as e:
-                    handle_error(e, "Data Analysis")
+        # Analysis buttons in columns
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("🚀 Analyze Data", type="primary", use_container_width=True):
+                with st.spinner("🔍 Running Insight Generator... (This usually takes 10-20 seconds)"):
+                    try:
+                        # Generate insights using the existing analyzer
+                        generator = InsightGenerator(st.session_state.data)
+                        result = generator.generate_comprehensive_insights()
+                        st.session_state.analysis_result = result
+                        st.session_state.show_visuals = False  # Reset visuals
+                        st.success("✅ Analysis complete!" )
+                        st.info("💡 Click 'Generate Visuals' to see interactive charts")
+                    except Exception as e:
+                        handle_error(e, "Data Analysis")
+        
+        with col2:
+            if st.button("📊 Generate Visuals", type="secondary", use_container_width=True, disabled=st.session_state.analysis_result is None):
+                st.session_state.show_visuals = True
+                st.success("🎨 Generating visualizations...")
         
         # Display results
         if st.session_state.analysis_result:
@@ -384,7 +431,47 @@ else:
             </div>
             """, unsafe_allow_html=True)
             
-            # Tabs for details
+            # Only show dashboard visualizations if user clicked the button
+            if st.session_state.show_visuals:
+                # Create dashboard visualizations
+                st.markdown("---")
+                st.markdown("## 📈 Interactive Analytics Dashboard")
+                
+                try:
+                    # Initialize dashboard visualizer
+                    dashboard = DashboardVisualizer(st.session_state.data)
+                    
+                    # Display summary metrics
+                    metrics = dashboard.create_summary_metrics()
+                    
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("Total Rows", f"{metrics['total_rows']:,}")
+                    with col2:
+                        st.metric("Total Columns", metrics['total_columns'])
+                    with col3:
+                        st.metric("Numeric Fields", metrics['numeric_columns'])
+                    with col4:
+                        st.metric("Missing Values", f"{metrics['missing_percentage']}%")
+                    
+                    # Generate all dashboard charts
+                    st.markdown("---")
+                    with st.spinner("🎨 Creating visualizations..."):
+                        figures = dashboard.create_overview_dashboard()
+                        
+                        if figures:
+                            for fig in figures:
+                                st.plotly_chart(fig, use_container_width=True)
+                        else:
+                            st.info("📊 No charts generated. Dataset might not have numeric or categorical data suitable for visualization.")
+                    
+                except Exception as e:
+                    st.error(f"❌ Error creating dashboard: {str(e)}")
+                    logger.error(f"Dashboard error: {e}", exc_info=True)
+            
+            # Tabs for detailed analysis
+            st.markdown("---")
+            st.markdown("## 🔍 Detailed Analysis")
             tab1, tab2, tab3 = st.tabs(["💡 AI Insights", "📊 Statistics", "🔍 Patterns"])
             
             with tab1:
