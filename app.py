@@ -397,27 +397,40 @@ else:
         with st.expander("👁️ Preview Data", expanded=False):
             clean_dataframe_display(st.session_state.data)
         
-        # Analysis buttons in columns
-        col1, col2 = st.columns(2)
-        
-        with col1:
+        # Analysis button — full width until analysis done, then split
+        if st.session_state.analysis_result is None:
+            # No analysis yet — show only Analyze button, full width
             if st.button("🚀 Analyze Data", type="primary", use_container_width=True):
-                with st.spinner("🔍 Running Insight Generator... (This usually takes 10-20 seconds)"):
+                with st.spinner("🔍 Running Insight Generator… (usually 10-20 s)"):
                     try:
-                        # Generate insights using the existing analyzer
                         generator = InsightGenerator(st.session_state.data)
                         result = generator.generate_comprehensive_insights()
                         st.session_state.analysis_result = result
-                        st.session_state.show_visuals = False  # Reset visuals
-                        st.success("✅ Analysis complete!" )
-                        st.info("💡 Click 'Generate Visuals' to see interactive charts")
+                        st.session_state.show_visuals = False
+                        st.success("✅ Analysis complete! You can now generate visualizations.")
+                        st.rerun()
                     except Exception as e:
                         handle_error(e, "Data Analysis")
-        
-        with col2:
-            if st.button("📊 Generate Visuals", type="secondary", use_container_width=True, disabled=st.session_state.analysis_result is None):
-                st.session_state.show_visuals = True
-                st.success("🎨 Generating visualizations...")
+        else:
+            # Analysis done — show both buttons side by side
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("🔄 Re-Analyze Data", type="secondary", use_container_width=True):
+                    with st.spinner("🔍 Re-running analysis…"):
+                        try:
+                            generator = InsightGenerator(st.session_state.data)
+                            result = generator.generate_comprehensive_insights()
+                            st.session_state.analysis_result = result
+                            st.session_state.show_visuals = False
+                            st.success("✅ Analysis updated!")
+                            st.rerun()
+                        except Exception as e:
+                            handle_error(e, "Data Analysis")
+            with col2:
+                vis_label = "🎨 Hide Visuals" if st.session_state.show_visuals else "📊 Generate Visuals"
+                if st.button(vis_label, type="primary", use_container_width=True):
+                    st.session_state.show_visuals = not st.session_state.show_visuals
+                    st.rerun()
         
         # Display results
         if st.session_state.analysis_result:
@@ -433,40 +446,75 @@ else:
             
             # Only show dashboard visualizations if user clicked the button
             if st.session_state.show_visuals:
-                # Create dashboard visualizations
                 st.markdown("---")
                 st.markdown("## 📈 Interactive Analytics Dashboard")
-                
+
                 try:
-                    # Initialize dashboard visualizer
                     dashboard = DashboardVisualizer(st.session_state.data)
-                    
-                    # Display summary metrics
-                    metrics = dashboard.create_summary_metrics()
-                    
-                    col1, col2, col3, col4 = st.columns(4)
-                    with col1:
-                        st.metric("Total Rows", f"{metrics['total_rows']:,}")
-                    with col2:
-                        st.metric("Total Columns", metrics['total_columns'])
-                    with col3:
-                        st.metric("Numeric Fields", metrics['numeric_columns'])
-                    with col4:
-                        st.metric("Missing Values", f"{metrics['missing_percentage']}%")
-                    
-                    # Generate all dashboard charts
+                    metrics   = dashboard.create_summary_metrics()
+
+                    # ── quick metrics strip ──────────────────────────────
+                    m1, m2, m3, m4, m5 = st.columns(5)
+                    m1.metric("Rows",        f"{metrics['total_rows']:,}")
+                    m2.metric("Columns",     metrics['total_columns'])
+                    m3.metric("Numeric",     metrics['numeric_columns'])
+                    m4.metric("Categorical", metrics['categorical_columns'])
+                    missing_pct = metrics['missing_percentage']
+                    missing_color = "normal" if missing_pct < 5 else "inverse"
+                    m5.metric("Missing",     f"{missing_pct}%", delta=None)
+
                     st.markdown("---")
-                    with st.spinner("🎨 Creating visualizations..."):
-                        figures = dashboard.create_overview_dashboard()
-                        
-                        if figures:
-                            for fig in figures:
-                                st.plotly_chart(fig, use_container_width=True)
-                        else:
-                            st.info("📊 No charts generated. Dataset might not have numeric or categorical data suitable for visualization.")
-                    
+
+                    with st.spinner("🎨 Building intelligent visualizations…"):
+                        named_charts = dashboard.create_overview_dashboard()
+
+                    if not named_charts:
+                        st.info("📊 No charts generated — dataset may lack numeric/categorical columns.")
+                    else:
+                        # ── group charts into tab categories ────────────
+                        cat_map = {
+                            "🔍 Quality":      [],
+                            "📊 Distributions":[],
+                            "🔗 Correlations": [],
+                            "🏷️ Categories":   [],
+                            "📦 Comparisons":  [],
+                            "📈 Trends":       [],
+                            "🔭 Advanced":     [],
+                        }
+                        for label, fig in named_charts:
+                            if "Completeness" in label or "Quality" in label:
+                                cat_map["🔍 Quality"].append((label, fig))
+                            elif "Distribution" in label or "📊" in label:
+                                cat_map["📊 Distributions"].append((label, fig))
+                            elif "Correlation" in label or "↔️" in label:
+                                cat_map["🔗 Correlations"].append((label, fig))
+                            elif "Categories" in label or "🏷️" in label or "Breakdown" in label:
+                                cat_map["🏷️ Categories"].append((label, fig))
+                            elif "Box" in label or "📦" in label or "Mean" in label:
+                                cat_map["📦 Comparisons"].append((label, fig))
+                            elif "Time" in label or "📈" in label:
+                                cat_map["📈 Trends"].append((label, fig))
+                            else:
+                                cat_map["🔭 Advanced"].append((label, fig))
+
+                        # Remove empty tabs
+                        active_tabs = {k: v for k, v in cat_map.items() if v}
+
+                        if active_tabs:
+                            tab_objs = st.tabs(list(active_tabs.keys()))
+                            for tab_obj, (tab_name, tab_charts) in zip(tab_objs, active_tabs.items()):
+                                with tab_obj:
+                                    for label, fig in tab_charts:
+                                        st.markdown(f"#### {label}")
+                                        st.plotly_chart(fig, use_container_width=True)
+                                        st.markdown("")  # spacing
+
+                        # ── download hint ────────────────────────────────
+                        st.caption(f"ℹ️  {len(named_charts)} smart charts generated. "
+                                   "Use the camera icon on any chart to save as PNG.")
+
                 except Exception as e:
-                    st.error(f"❌ Error creating dashboard: {str(e)}")
+                    st.error(f"❌ Dashboard error: {str(e)}")
                     logger.error(f"Dashboard error: {e}", exc_info=True)
             
             # Tabs for detailed analysis
@@ -634,4 +682,3 @@ st.markdown("""
     FINBOT v4.0.0 | All 3 Phases Operational: Memory + Reasoning + Learning 🚀
 </div>
 """, unsafe_allow_html=True)
-
