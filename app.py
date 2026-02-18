@@ -43,6 +43,24 @@ from analyzers.insight_generator import InsightGenerator
 from chatbot.qa_chain import EnhancedQAChain, DataContextManager
 from utils.dashboard_visualizer import DashboardVisualizer
 
+# ── agentic imports ────────────────────────────────────────────────────────────
+try:
+    from agentic_core import create_vishleshak_agent
+    from tools.specialized import (
+        StatisticalAnalyzerTool,
+        CorrelationFinderTool,
+        AnomalyDetectorTool,
+        ChartGeneratorTool,
+        TrendAnalyzerTool,
+        ForecasterTool,
+        PythonSandboxTool,
+        ReportGeneratorTool,
+    )
+    AGENTIC_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"⚠️ Agentic features not available: {e}")
+    AGENTIC_AVAILABLE = False
+
 # ─────────────────────────────────────────────────────────────────────────────
 # PAGE CONFIG  (must be first Streamlit call)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -62,11 +80,16 @@ defaults = dict(
     show_visuals=False,
     mode="Analysis",
     qa_chain=None,
+    agent=None,
+    use_agent_mode=False,
+    show_agent_thinking=True,
     session_id=str(uuid.uuid4()),
     chat_history=[],
     all_sessions=[],          # list of {id, title, history}
     dark_mode=False,
     initialized=False,
+    generating_visuals=False,  # NEW: track visual generation state
+    charts_cache=None,         # NEW: cache generated charts
 )
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -571,6 +594,36 @@ hr {{
     overflow: hidden;
 }}
 
+/* ── Agent reasoning styles ─────────────────────────────── */
+.agent-step {{
+    background: var(--surface);
+    border-left: 3px solid var(--accent);
+    padding: 0.75rem;
+    margin: 0.5rem 0;
+    border-radius: 0.4rem;
+    transition: var(--transition);
+}}
+.agent-step:hover {{
+    background: var(--surface2);
+    transform: translateX(3px);
+}}
+.agent-thought {{
+    color: var(--text);
+    font-weight: 500;
+    margin-bottom: 0.4rem;
+}}
+.agent-action {{
+    color: var(--accent);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+}}
+.agent-observation {{
+    color: var(--muted);
+    font-size: 0.85rem;
+    line-height: 1.5;
+    margin-top: 0.4rem;
+}}
+
 /* ── Sidebar logo area ──────────────────────────────────── */
 .sidebar-brand {{
     display: flex;
@@ -680,6 +733,25 @@ with st.sidebar:
         index=0 if st.session_state.mode == "Analysis" else 1,
     )
     st.session_state.mode = "Analysis" if "Analysis" in mode_choice else "Q&A"
+    
+    # ── Agent mode toggle (Q&A only) ─────────────────────────
+    if st.session_state.mode == "Q&A" and AGENTIC_AVAILABLE:
+        st.markdown('<div class="sidebar-section">AI Mode</div>', unsafe_allow_html=True)
+        agent_mode = st.checkbox(
+            "🤖 Enable Agentic Mode",
+            value=st.session_state.use_agent_mode,
+            help="Use autonomous ReAct agent with specialized tools"
+        )
+        if agent_mode != st.session_state.use_agent_mode:
+            st.session_state.use_agent_mode = agent_mode
+            st.session_state.agent = None  # Reset agent
+        
+        if st.session_state.use_agent_mode:
+            st.session_state.show_agent_thinking = st.checkbox(
+                "👁️ Show Reasoning Process",
+                value=st.session_state.show_agent_thinking,
+                help="Display agent's thought → action → observation loop"
+            )
 
     # ── Chat History ─────────────────────────────────────────
     if st.session_state.mode == "Q&A":
@@ -785,6 +857,7 @@ st.markdown("""
         <span class="badge">⛓️ Chain-of-Thought</span>
         <span class="badge">📈 Quality Scoring</span>
         <span class="badge">🛠️ Agentic Tools</span>
+        <span class="badge">🤖 ReAct Agent</span>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -867,6 +940,8 @@ if st.session_state.data is None:
                 st.session_state.qa_chain = None
                 st.session_state.analysis_result = None
                 st.session_state.show_visuals = False
+                st.session_state.charts_cache = None  # Clear charts cache
+                st.session_state.generating_visuals = False
                 st.success(f"✅ Loaded **{len(df):,} rows × {len(df.columns)} columns** from `{uploaded_file.name}`")
                 st.rerun()
 
@@ -903,6 +978,8 @@ else:
                 st.session_state.qa_chain = None
                 st.session_state.analysis_result = None
                 st.session_state.show_visuals = False
+                st.session_state.charts_cache = None  # Clear charts cache
+                st.session_state.generating_visuals = False
                 st.rerun()
 
     st.markdown("<hr>", unsafe_allow_html=True)
@@ -929,6 +1006,8 @@ else:
                     prog.progress(90, text="✅ Finalising…")
                     st.session_state.analysis_result = result
                     st.session_state.show_visuals = False
+                    st.session_state.charts_cache = None  # Clear charts cache
+                    st.session_state.generating_visuals = False
                     prog.progress(100, text="✅ Analysis complete!")
                     import time; time.sleep(0.4)
                     prog.empty()
@@ -949,6 +1028,8 @@ else:
                         prog.progress(100, text="✅ Done!")
                         st.session_state.analysis_result = result
                         st.session_state.show_visuals = False
+                        st.session_state.charts_cache = None  # Clear charts cache
+                        st.session_state.generating_visuals = False
                         import time; time.sleep(0.3)
                         prog.empty()
                         st.rerun()
@@ -956,9 +1037,16 @@ else:
                         prog.empty()
                         handle_error(e, "Re-Analysis")
             with btn2:
-                vis_label = "🙈 Hide Charts" if st.session_state.show_visuals else "📊 Generate Visuals"
+                vis_label = "🔒 Hide Charts" if st.session_state.show_visuals else "📊 Generate Visuals"
                 if st.button(vis_label, use_container_width=True):
-                    st.session_state.show_visuals = not st.session_state.show_visuals
+                    if not st.session_state.show_visuals:
+                        # Trigger visual generation
+                        st.session_state.generating_visuals = True
+                        st.session_state.show_visuals = True
+                        st.session_state.charts_cache = None  # Clear cache
+                    else:
+                        # Hide charts
+                        st.session_state.show_visuals = False
                     st.rerun()
 
         # ── Results ──────────────────────────────────────────
@@ -975,16 +1063,59 @@ else:
             # ── Visualisations ───────────────────────────────
             if st.session_state.show_visuals:
                 st.markdown("## 📈 Interactive Analytics Dashboard")
-                st.markdown('<div class="loading-bar"></div>', unsafe_allow_html=True)
-
-                try:
-                    dashboard = DashboardVisualizer(df)
-                    with st.spinner("🎨 Building intelligent visualisations…"):
+                
+                # Check if we need to generate charts
+                if st.session_state.charts_cache is None or st.session_state.generating_visuals:
+                    # Show detailed progress
+                    prog_vis = st.progress(0, text="🎨 Initializing dashboard builder…")
+                    st.markdown('<div class="loading-bar"></div>', unsafe_allow_html=True)
+                    
+                    try:
+                        import time
+                        prog_vis.progress(10, text="📊 Analyzing dataset structure…")
+                        time.sleep(0.2)
+                        
+                        dashboard = DashboardVisualizer(df)
+                        
+                        prog_vis.progress(25, text="🔍 Identifying data quality patterns…")
+                        time.sleep(0.2)
+                        
+                        prog_vis.progress(40, text="📈 Generating distribution charts…")
+                        time.sleep(0.2)
+                        
+                        prog_vis.progress(55, text="🔗 Computing correlations…")
+                        time.sleep(0.2)
+                        
+                        prog_vis.progress(70, text="🏷️ Creating categorical breakdowns…")
+                        time.sleep(0.2)
+                        
+                        prog_vis.progress(85, text="✨ Finalizing visualizations…")
                         named_charts = dashboard.create_overview_dashboard()
+                        
+                        prog_vis.progress(100, text="✅ Dashboard ready!")
+                        time.sleep(0.4)
+                        prog_vis.empty()
+                        
+                        # Cache the charts
+                        st.session_state.charts_cache = named_charts
+                        st.session_state.generating_visuals = False
+                    except Exception as e:
+                        prog_vis.empty()
+                        st.error(f"❌ Dashboard generation error: {e}")
+                        logger.error(f"Dashboard error: {e}", exc_info=True)
+                        st.session_state.generating_visuals = False
+                        st.session_state.charts_cache = []
+                        named_charts = []
+                else:
+                    # Use cached charts
+                    named_charts = st.session_state.charts_cache
+                    st.success("✅ Dashboard loaded from cache")
 
-                    if not named_charts:
-                        st.info("📊 No charts generated — dataset may lack numeric/categorical columns.")
-                    else:
+                # Display charts
+                if not named_charts:
+                    st.info("📊 No charts generated — dataset may lack numeric/categorical columns.")
+                else:
+                    try:
                         # Group into tab categories
                         cat_map = {
                             "🔍 Quality":       [],
@@ -995,6 +1126,11 @@ else:
                             "📈 Trends":        [],
                             "🔭 Advanced":      [],
                         }
+                        
+                        # Categorize charts with progress
+                        chart_progress = st.empty()
+                        chart_progress.markdown(f"<small style='color:var(--muted)'>📊 Organizing {len(named_charts)} charts...</small>", unsafe_allow_html=True)
+                        
                         for label, fig in named_charts:
                             if any(k in label for k in ["Completeness","Quality","🔍"]):
                                 cat_map["🔍 Quality"].append((label, fig))
@@ -1010,21 +1146,32 @@ else:
                                 cat_map["📈 Trends"].append((label, fig))
                             else:
                                 cat_map["🔭 Advanced"].append((label, fig))
-
+                        
+                        chart_progress.empty()
+                        
                         active = {k: v for k, v in cat_map.items() if v}
+                        
+                        # Show chart count summary
+                        st.markdown(f"""
+                        <div style="background:var(--surface2);padding:0.75rem;border-radius:0.5rem;margin:1rem 0;">
+                            <small>
+                            📊 <b>{len(named_charts)} charts</b> organized into <b>{len(active)} categories</b>
+                            &nbsp;·&nbsp; Use the 📷 icon on any chart to save as PNG
+                            </small>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
                         tab_objs = st.tabs(list(active.keys()))
                         for tab_obj, (tab_name, tab_charts) in zip(tab_objs, active.items()):
                             with tab_obj:
-                                for label, fig in tab_charts:
+                                for i, (label, fig) in enumerate(tab_charts, 1):
                                     st.markdown(f"#### {label}")
                                     st.plotly_chart(fig, use_container_width=True)
-                                    st.markdown("")
-
-                        st.caption(f"ℹ️ {len(named_charts)} intelligent charts generated. "
-                                   "Use the 📷 icon on any chart to save as PNG.")
-                except Exception as e:
-                    st.error(f"❌ Dashboard error: {e}")
-                    logger.error(f"Dashboard error: {e}", exc_info=True)
+                                    if i < len(tab_charts):
+                                        st.markdown("---")
+                    except Exception as e:
+                        st.error(f"❌ Chart display error: {e}")
+                        logger.error(f"Chart display error: {e}", exc_info=True)
 
             # ── Detailed analysis tabs ───────────────────────
             st.markdown("## 🔍 Detailed Analysis")
@@ -1136,6 +1283,37 @@ else:
                 </div>
                 """, unsafe_allow_html=True)
 
+                # ── Agent reasoning trace (if agent mode) ──────────────────
+                if meta and meta.get("is_agent") and st.session_state.show_agent_thinking:
+                    reasoning = meta.get("reasoning_trace", [])
+                    tools_used = meta.get("tools_used", [])
+                    confidence = meta.get("confidence", 0)
+                    
+                    with st.expander(f"🧠 Agent Reasoning ({len(reasoning)} steps, {len(tools_used)} tools)", expanded=False):
+                        st.markdown(f"""
+                        <div style="background:var(--surface2);padding:0.75rem;border-radius:0.5rem;margin-bottom:1rem;">
+                            <small>
+                            🎯 <b>Confidence:</b> {confidence:.1%} &nbsp;|
+                            🛠️ <b>Tools:</b> {', '.join(tools_used) if tools_used else 'None'} &nbsp;|
+                            🔁 <b>Iterations:</b> {len(reasoning)}
+                            </small>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        for i, step in enumerate(reasoning, 1):
+                            thought = step.get("thought", "")
+                            action = step.get("action", "")
+                            observation = step.get("observation", "")[:300] + "..."
+                            
+                            st.markdown(f"""
+                            <div style="background:var(--surface);border-left:3px solid var(--accent);padding:0.75rem;margin:0.5rem 0;border-radius:0.4rem;">
+                                <div style="font-size:0.75rem;color:var(--muted);margin-bottom:0.3rem;">STEP {i}</div>
+                                {f'<div style="margin-bottom:0.5rem;"><b>💡 Thought:</b> {thought}</div>' if thought else ''}
+                                <div style="margin-bottom:0.5rem;"><b>🔧 Action:</b> <code>{action}</code></div>
+                                <div style="font-size:0.85rem;color:var(--muted);"><b>👁️ Observation:</b> {observation}</div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
                 # Feedback buttons
                 if meta and "quality_score" in meta:
                     message_id = meta.get("message_id", idx)
@@ -1208,43 +1386,127 @@ else:
                     )
 
         # ── Process question ──────────────────────────────────
-        if process_question and user_input and st.session_state.qa_chain:
-            st.session_state.chat_history.append(("user", user_input))
+        if process_question and user_input:
+            # Check which mode to use
+            use_agent = st.session_state.use_agent_mode and st.session_state.agent is not None
+            use_qa = st.session_state.qa_chain is not None
+            
+            if not use_agent and not use_qa:
+                st.error("❌ No AI system initialized. Please refresh the page.")
+            else:
+                st.session_state.chat_history.append(("user", user_input))
 
-            prog2 = st.progress(0, text="🔍 Understanding your question…")
-            try:
-                import time
-                prog2.progress(20, text="📚 Searching knowledge base…")
-                time.sleep(0.15)
-                prog2.progress(45, text="🧠 Reasoning through the data…")
-                time.sleep(0.15)
-                prog2.progress(70, text="✍️ Composing answer…")
+                prog2 = st.progress(0, text="🔍 Understanding your question…")
+                try:
+                    import time
+                    
+                    if use_agent:
+                        # ══════════════════════════════════════════════════════
+                        # AGENT MODE
+                        # ══════════════════════════════════════════════════════
+                        prog2.progress(20, text="🤖 Agent analyzing question…")
+                        time.sleep(0.15)
+                        prog2.progress(40, text="🛠️ Selecting tools…")
+                        time.sleep(0.15)
+                        prog2.progress(60, text="🧠 Reasoning through data…")
+                        time.sleep(0.15)
+                        prog2.progress(80, text="✍️ Synthesizing answer…")
+                        
+                        agent_result = st.session_state.agent.run(user_input)
+                        
+                        response = agent_result["answer"]
+                        confidence = agent_result.get("confidence", 1.0)
+                        reasoning_trace = agent_result.get("reasoning_trace", [])
+                        tools_used = agent_result.get("tools_used", [])
+                        
+                        # Convert confidence to grade
+                        if confidence >= 0.9:
+                            grade, score = "A", confidence * 100
+                        elif confidence >= 0.7:
+                            grade, score = "B", confidence * 100
+                        elif confidence >= 0.5:
+                            grade, score = "C", confidence * 100
+                        else:
+                            grade, score = "D", confidence * 100
+                        
+                        prog2.progress(100, text=f"✅ Done — Confidence {confidence:.0%}")
+                        time.sleep(0.3)
+                        prog2.empty()
+                        
+                        st.session_state.chat_history.append((
+                            "bot",
+                            response,
+                            {
+                                "quality_score": score,
+                                "quality_grade": grade,
+                                "message_id": len(st.session_state.chat_history),
+                                "is_agent": True,
+                                "confidence": confidence,
+                                "reasoning_trace": reasoning_trace,
+                                "tools_used": tools_used,
+                            },
+                        ))
+                        st.rerun()
+                    
+                    else:
+                        # ══════════════════════════════════════════════════════
+                        # REGULAR QA MODE
+                        # ══════════════════════════════════════════════════════
+                        prog2.progress(20, text="📚 Searching knowledge base…")
+                        time.sleep(0.15)
+                        prog2.progress(45, text="🧠 Reasoning through the data…")
+                        time.sleep(0.15)
+                        prog2.progress(70, text="✍️ Composing answer…")
 
-                result = st.session_state.qa_chain.ask(user_input, return_dict=True)
+                        result = st.session_state.qa_chain.ask(user_input, return_dict=True)
 
-                prog2.progress(90, text="📊 Evaluating quality…")
-                time.sleep(0.1)
+                        prog2.progress(90, text="📊 Evaluating quality…")
+                        time.sleep(0.1)
 
-                response    = result["formatted_response"]
-                quality_obj = result["quality_score"]
-                msg_id      = result.get("cycle_number", len(st.session_state.chat_history))
-                grade       = quality_obj.get_grade()
-                score       = quality_obj.overall_score
+                        response    = result.get("formatted_response", "I apologize, but I couldn't generate a response.")
+                        quality_obj = result.get("quality_score")
+                        msg_id      = result.get("cycle_number", len(st.session_state.chat_history))
+                        
+                        # Handle None quality_obj
+                        if quality_obj:
+                            grade = quality_obj.get_grade()
+                            score = quality_obj.overall_score
+                        else:
+                            grade = "C"
+                            score = 50
 
-                prog2.progress(100, text=f"✅ Done — Grade {grade} ({score:.0f}/100)")
-                time.sleep(0.3)
-                prog2.empty()
+                        prog2.progress(100, text=f"✅ Done — Grade {grade} ({score:.0f}/100)")
+                        time.sleep(0.3)
+                        prog2.empty()
 
-                st.session_state.chat_history.append((
-                    "bot",
-                    response,
-                    {"quality_score": score, "quality_grade": grade, "message_id": msg_id},
-                ))
-                st.rerun()
+                        st.session_state.chat_history.append((
+                            "bot",
+                            response,
+                            {"quality_score": score, "quality_grade": grade, "message_id": msg_id},
+                        ))
+                        st.rerun()
 
-            except Exception as e:
-                prog2.empty()
-                handle_error(e, "Question Processing")
+                except Exception as e:
+                    prog2.empty()
+                    logger.error(f"Error in Question Processing: {e}", exc_info=True)
+                    
+                    # Display user-friendly error message
+                    error_response = f"❌ I encountered an error processing your question: {str(e)[:200]}"
+                    
+                    # Check for common errors
+                    if "Connection error" in str(e) or "timeout" in str(e).lower():
+                        error_response = "⚠️ Connection timeout. The AI service is experiencing high traffic. Please try again in a moment."
+                    elif "NoneType" in str(e):
+                        error_response = "⚠️ The response was incomplete. Please try rephrasing your question or try again."
+                    elif "API" in str(e) or "rate limit" in str(e).lower():
+                        error_response = "⚠️ API rate limit reached. Please wait a few seconds and try again."
+                    
+                    st.session_state.chat_history.append((
+                        "bot",
+                        error_response,
+                        {"quality_score": 0, "quality_grade": "F", "message_id": len(st.session_state.chat_history), "error": True},
+                    ))
+                    st.rerun()
 
         # ── Debug expander ────────────────────────────────────
         with st.expander("🕵️ Debug: Retrieved RAG Context"):

@@ -17,6 +17,11 @@ openpyxl==3.1.2
 # Statistical Analysis
 scipy==1.12.0
 scikit-learn==1.4.1.post1
+statsmodels>=0.14.0
+
+# Agentic System (NEW)
+langgraph>=0.0.20
+prophet>=1.1.5
 
 # Visualization
 plotly==5.20.0

@@ -81,3 +81,15 @@ def reset_llms():
     global _analysis_llm, _chat_llm
     _analysis_llm = None
     _chat_llm = None
+
+
+# Module-level convenience - use get_* functions for access
+# These are here for backward compatibility with imports like "from core.llm import chat_llm"
+# but should be called as chat_llm() not used directly
+def chat_llm():
+    """Convenience function - returns chat LLM instance"""
+    return get_chat_llm()
+
+def analysis_llm():
+    """Convenience function - returns analysis LLM instance"""
+    return get_analysis_llm()
