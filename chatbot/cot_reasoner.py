@@ -10,6 +10,7 @@ from langchain_core.output_parsers import StrOutputParser
 from core.llm import get_chat_llm
 from core.enhanced_memory import EnhancedMemoryManager
 from config import chain_config
+from chatbot.prompt_templates import PERSONA_BLOCK
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +113,8 @@ Provide validation assessment:"""),
         
         # STEP 6: SYNTHESIZE
         prompts["synthesize"] = ChatPromptTemplate.from_messages([
-            ("system", """Synthesize the reasoning into a clear, direct answer.
+            ("system", PERSONA_BLOCK + """
+Synthesize the reasoning into a clear, direct answer.
 
 QUESTION: {question}
 

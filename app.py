@@ -49,6 +49,7 @@ try:
     from ui.auth_ui import show_auth_page
     from ui.chat_history_ui import render_chat_history_sidebar
     from ui.user_settings_ui import render_user_settings
+    from ui.claude_loaders import show_claude_loader
     from database.chat_repository import ChatRepository
     AUTH_AVAILABLE = True
     init_database()
@@ -99,7 +100,7 @@ defaults = dict(
     session_id=str(uuid.uuid4()),
     chat_history=[],
     all_sessions=[],          # list of {id, title, history}
-    dark_mode=False,
+    dark_mode=True,           # Enable dark mode by default for Claude theme
     initialized=False,
     generating_visuals=False,  # NEW: track visual generation state
     charts_cache=None,         # NEW: cache generated charts
@@ -122,36 +123,58 @@ if AUTH_AVAILABLE and st.session_state.auth_user is None:
         st.stop()
 
 # ─────────────────────────────────────────────────────────────────────────────
-# THEME TOKENS
+# THEME TOKENS — Claude-inspired professional colors for light/dark modes
 # ─────────────────────────────────────────────────────────────────────────────
 DARK = dict(
-    bg="#0F1117", surface="#1A1D27", surface2="#22263A",
-    border="#2D3148", text="#E8EAF6", muted="#8892B0",
-    accent="#7C3AED", accent2="#06B6D4",
-    card_bg="#1A1D27", card_border="#2D3148",
-    user_msg="#1E2235", bot_msg="#1A2744",
-    user_border="#4F46E5", bot_border="#06B6D4",
+    bg="#0D0F1C",           # Deep midnight
+    surface="#161B2E",      # Elevated surface
+    surface2="#1F2638",     # Secondary surface
+    border="#2D3548",       # Subtle borders
+    text="#F8FAFC",         # High contrast text
+    muted="#94A3B8",        # Muted text
+    accent="#6366F1",       # Indigo - primary accent
+    accent2="#06B6D4",      # Cyan - secondary accent
+    accent3="#10B981",      # Green - success/tertiary
+    card_bg="#161B2E",      
+    card_border="#2D3548",
+    user_msg="#1E2638",     # User message background
+    bot_msg="#1A1F2E",      # Bot message background
+    user_border="#6366F1",  # Indigo border for user
+    bot_border="#10B981",   # Green border for bot
     btn_text="#FFFFFF",
+    gradient_accent="linear-gradient(135deg, #6366F1, #06B6D4)",
+    gradient_title="linear-gradient(135deg, #6366F1 0%, #06B6D4 50%, #10B981 100%)",
 )
 LIGHT = dict(
-    bg="#F8FAFF", surface="#FFFFFF", surface2="#F1F5FF",
-    border="#E2E8F4", text="#1A1A2E", muted="#64748B",
-    accent="#4F46E5", accent2="#0891B2",
-    card_bg="#FFFFFF", card_border="#E2E8F4",
-    user_msg="#F1F5FF", bot_msg="#EFF6FF",
-    user_border="#6366F1", bot_border="#0891B2",
+    bg="#FFFFFF",           # Pure white
+    surface="#F8FAFC",      # Elevated surface
+    surface2="#F1F5F9",     # Secondary surface
+    border="#E2E8F0",       # Subtle borders
+    text="#0F172A",         # High contrast text
+    muted="#475569",        # Muted text
+    accent="#4F46E5",       # Deeper indigo - primary
+    accent2="#0891B2",      # Deeper cyan - secondary
+    accent3="#059669",      # Deeper green - success
+    card_bg="#F8FAFC",
+    card_border="#E2E8F0",
+    user_msg="#EEF2FF",     # Light indigo tint
+    bot_msg="#ECFDF5",      # Light green tint
+    user_border="#4F46E5",  # Indigo border
+    bot_border="#059669",   # Green border
     btn_text="#FFFFFF",
+    gradient_accent="linear-gradient(135deg, #4F46E5, #0891B2)",
+    gradient_title="linear-gradient(135deg, #4F46E5 0%, #0891B2 50%, #059669 100%)",
 )
 
 T = DARK if st.session_state.dark_mode else LIGHT
 
 # ─────────────────────────────────────────────────────────────────────────────
-# GLOBAL CSS
+# GLOBAL CSS — Claude-inspired design with Space Grotesk & Inter
 # ─────────────────────────────────────────────────────────────────────────────
 st.markdown(f"""
 <style>
 /* ── Google Fonts ─────────────────────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
 
 /* ── CSS variables (theme tokens) ──────────────────────── */
 :root {{
@@ -163,16 +186,22 @@ st.markdown(f"""
     --muted:      {T['muted']};
     --accent:     {T['accent']};
     --accent2:    {T['accent2']};
+    --accent3:    {T['accent3']};
     --card:       {T['card_bg']};
     --card-b:     {T['card_border']};
     --user-msg:   {T['user_msg']};
     --bot-msg:    {T['bot_msg']};
     --user-b:     {T['user_border']};
     --bot-b:      {T['bot_border']};
-    --radius:     0.875rem;
-    --shadow:     0 4px 24px rgba(0,0,0,0.12);
-    --shadow-lg:  0 8px 40px rgba(0,0,0,0.18);
-    --transition: all 0.25s cubic-bezier(0.4,0,0.2,1);
+    --radius:     1rem;
+    --radius-lg:  1.5rem;
+    --shadow:     0 10px 40px rgba(0,0,0,0.15);
+    --shadow-lg:  0 20px 60px rgba(0,0,0,0.25);
+    --transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
+    
+    /* Gradients */
+    --gradient-accent: {T['gradient_accent']};
+    --gradient-title:  {T['gradient_title']};
 }}
 
 /* ── Global reset ─────────────────────────────────────── */
@@ -182,7 +211,7 @@ html {{ scroll-behavior: smooth; }}
 body, .stApp {{
     background: var(--bg) !important;
     color: var(--text) !important;
-    font-family: 'Space Grotesk', system-ui, sans-serif !important;
+    font-family: 'Inter', system-ui, sans-serif !important;
 }}
 
 /* ── Hide default Streamlit chrome ─────────────────────── */
@@ -195,189 +224,337 @@ body, .stApp {{
 /* ── Sidebar ───────────────────────────────────────────── */
 [data-testid="stSidebar"] {{
     background: var(--surface) !important;
-    border-right: 1px solid var(--border) !important;
+    border-right: 3px solid var(--border) !important;
     padding-top: 1rem;
+    box-shadow: 4px 0 20px rgba(0,0,0,0.15);
 }}
 [data-testid="stSidebar"] * {{
     color: var(--text) !important;
+}}
+[data-testid="stSidebar"] .stButton > button {{
+    font-size: 1.1rem !important;
 }}
 
 /* ── HERO header ───────────────────────────────────────── */
 .hero-wrap {{
     text-align: center;
-    padding: 2.5rem 1rem 1.5rem;
+    padding: 3rem 1rem 2rem;
     position: relative;
 }}
 .hero-logo {{
-    font-size: 3.6rem;
-    filter: drop-shadow(0 0 24px {T['accent']}66);
-    animation: pulse-logo 3s ease-in-out infinite;
+    font-size: 4.5rem;
+    filter: drop-shadow(0 0 30px var(--accent)) drop-shadow(0 0 60px var(--accent2));
+    animation: pulse-logo 4s ease-in-out infinite;
 }}
 @keyframes pulse-logo {{
-    0%,100% {{ transform: scale(1); filter: drop-shadow(0 0 24px {T['accent']}66); }}
-    50%      {{ transform: scale(1.06); filter: drop-shadow(0 0 36px {T['accent']}99); }}
+    0%,100% {{ transform: scale(1) rotate(0deg); filter: drop-shadow(0 0 30px var(--accent)); }}
+    50%      {{ transform: scale(1.08) rotate(2deg); filter: drop-shadow(0 0 50px var(--accent2)); }}
 }}
 .hero-title {{
-    font-size: 2.8rem;
-    font-weight: 700;
-    letter-spacing: -0.03em;
-    background: linear-gradient(135deg, {T['accent']} 0%, {T['accent2']} 100%);
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 3.5rem;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    background: var(--gradient-title);
+    background-size: 200% auto;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    margin: 0.25rem 0 0;
-    line-height: 1.1;
+    animation: gradient-shift 5s ease infinite, title-glow 3s ease-in-out infinite;
+    margin: 0.5rem 0 0;
+    line-height: 1.05;
+    text-shadow: 0 0 40px var(--accent);
+}}
+@keyframes gradient-shift {{
+    0%, 100% {{ background-position: 0% center; }}
+    50% {{ background-position: 100% center; }}
+}}
+@keyframes title-glow {{
+    0%, 100% {{ filter: drop-shadow(0 0 20px var(--accent)) brightness(1); }}
+    50% {{ filter: drop-shadow(0 0 40px var(--accent2)) brightness(1.2); }}
 }}
 .hero-sub {{
-    font-size: 1.05rem;
+    font-family: 'Inter', sans-serif;
+    font-size: 1.1rem;
     color: var(--muted);
-    margin-top: 0.5rem;
+    margin-top: 0.75rem;
     font-weight: 400;
-    letter-spacing: 0.01em;
+    letter-spacing: 0.02em;
 }}
 .hero-badges {{
     display: flex;
     justify-content: center;
-    gap: 0.6rem;
-    margin-top: 1rem;
+    gap: 0.8rem;
+    margin-top: 1.5rem;
     flex-wrap: wrap;
 }}
 .badge {{
     background: var(--surface2);
-    border: 1px solid var(--border);
+    border: 2px solid var(--border);
     border-radius: 2rem;
-    padding: 0.25rem 0.85rem;
-    font-size: 0.78rem;
-    color: var(--muted);
-    font-weight: 500;
+    padding: 0.4rem 1rem;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 0.85rem;
+    color: var(--text);
+    font-weight: 600;
     transition: var(--transition);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
 }}
 .badge:hover {{
     border-color: var(--accent);
     color: var(--accent);
-    transform: translateY(-2px);
+    transform: translateY(-3px) scale(1.05);
+    box-shadow: 0 8px 25px var(--accent);
 }}
 
 /* ── Upload zone ───────────────────────────────────────── */
 .upload-zone {{
     background: var(--surface);
-    border: 2px dashed var(--border);
-    border-radius: var(--radius);
-    padding: 2.5rem 2rem;
+    border: 3px dashed var(--border);
+    border-radius: var(--radius-lg);
+    padding: 3.5rem 2.5rem;
     text-align: center;
     transition: var(--transition);
     cursor: pointer;
-    margin: 1.5rem auto;
-    max-width: 680px;
+    margin: 2rem auto;
+    max-width: 700px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+}}
+.upload-zone::before {{
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: var(--gradient-accent);
+    opacity: 0;
+    transition: var(--transition);
+    animation: rotate-bg 20s linear infinite;
 }}
 .upload-zone:hover {{
     border-color: var(--accent);
     background: var(--surface2);
-    transform: translateY(-3px);
-    box-shadow: var(--shadow);
+    transform: translateY(-5px) scale(1.02);
+    box-shadow: var(--shadow-lg);
 }}
-.upload-icon {{ font-size: 3rem; margin-bottom: 0.75rem; }}
-.upload-title {{ font-size: 1.15rem; font-weight: 600; color: var(--text); }}
-.upload-sub {{ font-size: 0.88rem; color: var(--muted); margin-top: 0.3rem; }}
+.upload-zone:hover::before {{
+    opacity: 0.08;
+}}
+.upload-icon {{ 
+    font-size: 4.5rem; 
+    margin-bottom: 1rem;
+    filter: drop-shadow(0 0 20px var(--accent));
+    animation: float 3s ease-in-out infinite;
+}}
+@keyframes float {{
+    0%, 100% {{ transform: translateY(0); }}
+    50% {{ transform: translateY(-10px); }}
+}}
+.upload-title {{ 
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.5rem; 
+    font-weight: 800; 
+    color: var(--text);
+    background: var(--gradient-accent);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 0.5rem;
+}}
+.upload-sub {{ 
+    font-family: 'Inter', sans-serif;
+    font-size: 1rem; 
+    color: var(--muted); 
+    margin-top: 0.5rem;
+}}
 
 /* ── Mode selector cards ───────────────────────────────── */
 .mode-grid {{
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-    max-width: 680px;
-    margin: 1.5rem auto 0;
+    gap: 1.5rem;
+    max-width: 700px;
+    margin: 2rem auto 0;
 }}
 .mode-card {{
     background: var(--surface);
-    border: 2px solid var(--border);
-    border-radius: var(--radius);
-    padding: 1.25rem 1.5rem;
+    border: 3px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 2rem 2rem;
     cursor: pointer;
     transition: var(--transition);
     text-align: center;
+    position: relative;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+}}
+.mode-card::before {{
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: var(--gradient-accent);
+    opacity: 0;
+    transition: var(--transition);
 }}
 .mode-card:hover {{
     border-color: var(--accent);
-    transform: translateY(-4px) scale(1.02);
-    box-shadow: var(--shadow);
+    transform: translateY(-6px) scale(1.04);
+    box-shadow: var(--shadow-lg);
+}}
+.mode-card:hover::before {{
+    opacity: 0.1;
 }}
 .mode-card.active {{
     border-color: var(--accent);
-    background: var(--surface2);
-    box-shadow: 0 0 0 3px {T['accent']}33;
+    background: var(--gradient-accent);
+    color: #FFFFFF;
+    box-shadow: 0 0 0 4px var(--accent), var(--shadow-lg);
 }}
-.mode-icon {{ font-size: 2rem; }}
-.mode-label {{ font-size: 0.95rem; font-weight: 600; margin-top: 0.4rem; color: var(--text); }}
-.mode-desc {{ font-size: 0.78rem; color: var(--muted); margin-top: 0.2rem; }}
+.mode-card.active .mode-label,
+.mode-card.active .mode-desc {{
+    color: #FFFFFF;
+}}
+.mode-icon {{ 
+    font-size: 3rem;
+    filter: drop-shadow(0 0 15px var(--accent));
+    margin-bottom: 0.75rem;
+}}
+.mode-label {{ 
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.3rem; 
+    font-weight: 700; 
+    margin-top: 0.75rem; 
+    color: var(--text);
+}}
+.mode-desc {{ 
+    font-family: 'Inter', sans-serif;
+    font-size: 0.9rem; 
+    color: var(--muted); 
+    margin-top: 0.5rem;
+}}
 
 /* ── Cards ─────────────────────────────────────────────── */
 .vcard {{
     background: var(--card);
-    border: 1px solid var(--card-b);
-    border-radius: var(--radius);
-    padding: 1.5rem;
-    margin: 1rem 0;
+    border: 2px solid var(--card-b);
+    border-radius: var(--radius-lg);
+    padding: 2rem;
+    margin: 1.5rem 0;
     box-shadow: var(--shadow);
     transition: var(--transition);
+    position: relative;
+    overflow: hidden;
 }}
-.vcard:hover {{ box-shadow: var(--shadow-lg); transform: translateY(-2px); }}
-.vcard h3 {{ margin: 0 0 0.75rem; font-size: 1.05rem; font-weight: 600; color: var(--text); }}
+.vcard::before {{
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: var(--gradient-accent);
+    transform: scaleY(0);
+    transition: var(--transition);
+}}
+.vcard:hover {{ 
+    box-shadow: var(--shadow-lg); 
+    transform: translateY(-4px);
+    border-color: var(--accent);
+}}
+.vcard:hover::before {{
+    transform: scaleY(1);
+}}
+.vcard h3 {{ 
+    margin: 0 0 1rem; 
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.5rem; 
+    font-weight: 700; 
+    background: var(--gradient-accent);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}}
 
 .accent-card {{
-    background: linear-gradient(135deg, {T['accent']}18 0%, {T['accent2']}18 100%);
-    border: 1px solid {T['accent']}44;
-    border-radius: var(--radius);
-    padding: 1.5rem;
-    margin: 1rem 0;
+    background: var(--gradient-accent);
+    border: 3px solid var(--accent);
+    border-radius: var(--radius-lg);
+    padding: 2rem;
+    margin: 1.5rem 0;
+    color: #FFFFFF;
+    box-shadow: 0 10px 40px var(--accent);
+    position: relative;
+    overflow: hidden;
+}}
+.accent-card::before {{
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -50%;
+    width: 200%;
+    height: 200%;
+    background: linear-gradient(45deg, rgba(255,255,255,0.1), rgba(255,255,255,0));
+    animation: shine 3s ease-in-out infinite;
+}}
+@keyframes shine {{
+    0%, 100% {{ transform: translateX(-100%); }}
+    50% {{ transform: translateX(100%); }}
 }}
 
 /* ── Buttons ─────────────────────────────────────────────── */
 .stButton > button {{
-    background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%) !important;
-    color: #fff !important;
+    background: var(--gradient-accent) !important;
+    color: var(--btn-text) !important;
     border: none !important;
-    border-radius: 0.6rem !important;
-    padding: 0.65rem 1.75rem !important;
+    border-radius: 1.5rem !important;
+    padding: 0.85rem 2rem !important;
     font-family: 'Space Grotesk', sans-serif !important;
-    font-weight: 600 !important;
-    font-size: 0.92rem !important;
-    letter-spacing: 0.01em !important;
+    font-weight: 700 !important;
+    font-size: 1.3rem !important;
+    letter-spacing: 0.02em !important;
     transition: var(--transition) !important;
-    box-shadow: 0 2px 12px {T['accent']}44 !important;
+    box-shadow: 0 8px 30px var(--accent) !important;
     position: relative;
     overflow: hidden;
+    text-transform: none !important;
 }}
-.stButton > button::after {{
+.stButton > button::before {{
     content: '';
     position: absolute;
     inset: 0;
-    background: rgba(255,255,255,0);
+    background: linear-gradient(135deg, rgba(255,255,255,0.2), rgba(255,255,255,0));
+    opacity: 0;
     transition: var(--transition);
 }}
 .stButton > button:hover {{
-    transform: translateY(-3px) scale(1.03) !important;
-    box-shadow: 0 6px 24px {T['accent']}66 !important;
+    transform: translateY(-4px) scale(1.05) !important;
+    box-shadow: 0 12px 45px var(--accent) !important;
 }}
-.stButton > button:hover::after {{
-    background: rgba(255,255,255,0.08);
+.stButton > button:hover::before {{
+    opacity: 1;
 }}
 .stButton > button:active {{
-    transform: translateY(-1px) scale(0.99) !important;
+    transform: translateY(-2px) scale(1.02) !important;
 }}
 
 /* Secondary buttons */
 [data-testid="baseButton-secondary"] > button,
 button[kind="secondary"] {{
-    background: var(--surface2) !important;
+    background: transparent !important;
     color: var(--accent) !important;
-    border: 1.5px solid var(--accent) !important;
-    box-shadow: none !important;
+    border: 2px solid var(--accent) !important;
+    box-shadow: 0 4px 15px var(--accent) !important;
+    font-size: 1.1rem !important;
 }}
 [data-testid="baseButton-secondary"] > button:hover,
 button[kind="secondary"]:hover {{
-    background: {T['accent']}18 !important;
-    transform: translateY(-2px) scale(1.02) !important;
-    box-shadow: 0 4px 16px {T['accent']}33 !important;
+    background: var(--accent) !important;
+    color: var(--btn-text) !important;
+    transform: translateY(-3px) scale(1.04) !important;
+    box-shadow: 0 8px 30px var(--accent) !important;
 }}
 
 /* ── Inputs ─────────────────────────────────────────────── */
@@ -385,71 +562,83 @@ button[kind="secondary"]:hover {{
 .stTextArea > div > div > textarea {{
     background: var(--surface) !important;
     color: var(--text) !important;
-    border: 1.5px solid var(--border) !important;
-    border-radius: 0.6rem !important;
-    font-family: 'Space Grotesk', sans-serif !important;
+    border: 2px solid var(--border) !important;
+    border-radius: 1rem !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 1rem !important;
+    padding: 0.85rem 1.2rem !important;
     transition: var(--transition) !important;
 }}
 .stTextInput > div > div > input:focus,
 .stTextArea > div > div > textarea:focus {{
     border-color: var(--accent) !important;
-    box-shadow: 0 0 0 3px {T['accent']}22 !important;
+    box-shadow: 0 0 0 4px var(--accent) !important;
     outline: none !important;
+    transform: scale(1.02);
 }}
 
 /* ── Chat messages ──────────────────────────────────────── */
 .chat-wrap {{
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
-    padding: 0.5rem 0;
+    gap: 1rem;
+    padding: 1rem 0;
 }}
 .chat-msg {{
-    border-radius: var(--radius);
-    padding: 1rem 1.25rem;
-    line-height: 1.65;
-    font-size: 0.95rem;
-    animation: slide-up 0.3s ease-out;
-    max-width: 88%;
+    border-radius: var(--radius-lg);
+    padding: 1.25rem 1.5rem;
+    line-height: 1.7;
+    font-family: 'Inter', sans-serif;
+    font-size: 1rem;
+    animation: slide-up 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    max-width: 85%;
     position: relative;
+    box-shadow: var(--shadow);
 }}
 @keyframes slide-up {{
-    from {{ opacity: 0; transform: translateY(12px); }}
-    to   {{ opacity: 1; transform: translateY(0); }}
+    from {{ opacity: 0; transform: translateY(20px) scale(0.95); }}
+    to   {{ opacity: 1; transform: translateY(0) scale(1); }}
 }}
 .chat-msg.user {{
     background: var(--user-msg);
-    border-left: 3px solid var(--user-b);
+    border-left: 4px solid var(--user-b);
     margin-left: auto;
-    border-radius: var(--radius) var(--radius) 0.25rem var(--radius);
+    border-radius: var(--radius-lg) var(--radius-lg) 0.5rem var(--radius-lg);
+    box-shadow: 0 8px 25px var(--user-b);
 }}
 .chat-msg.bot {{
     background: var(--bot-msg);
-    border-left: 3px solid var(--bot-b);
+    border-left: 4px solid var(--bot-b);
     margin-right: auto;
-    border-radius: var(--radius) var(--radius) var(--radius) 0.25rem;
+    border-radius: var(--radius-lg) var(--radius-lg) var(--radius-lg) 0.5rem;
+    box-shadow: 0 8px 25px var(--bot-b);
 }}
 .msg-label {{
-    font-size: 0.73rem;
-    font-weight: 600;
-    letter-spacing: 0.05em;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 0.35rem;
+    background: var(--gradient-accent);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 0.5rem;
 }}
 .quality-pill {{
     display: inline-block;
-    padding: 0.15rem 0.55rem;
+    padding: 0.25rem 0.75rem;
     border-radius: 2rem;
-    font-size: 0.7rem;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 0.75rem;
     font-weight: 700;
     margin-left: 0.5rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }}
-.grade-A {{ background:#10B98122; color:#10B981; border:1px solid #10B98155; }}
-.grade-B {{ background:#3B82F622; color:#3B82F6; border:1px solid #3B82F655; }}
-.grade-C {{ background:#F59E0B22; color:#F59E0B; border:1px solid #F59E0B55; }}
-.grade-D {{ background:#EF444422; color:#EF4444; border:1px solid #EF444455; }}
-.grade-F {{ background:#99182222; color:#991822; border:1px solid #99182255; }}
+.grade-A {{ background:#10B98133; color:#10B981; border:2px solid #10B981; }}
+.grade-B {{ background:#3B82F633; color:#3B82F6; border:2px solid #3B82F6; }}
+.grade-C {{ background:#F59E0B33; color:#F59E0B; border:2px solid #F59E0B; }}
+.grade-D {{ background:#EF444433; color:#EF4444; border:2px solid #EF4444; }}
+.grade-F {{ background:#99182233; color:#991822; border:2px solid #991822; }}
 
 /* ── Loading skeleton ──────────────────────────────────── */
 .skeleton {{
@@ -554,24 +743,40 @@ button[kind="secondary"]:hover {{
 }}
 
 /* ── Sidebar chat history items ─────────────────────────── */
+.sidebar-section {{
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text);
+    padding: 0.75rem 0;
+    margin-top: 1rem;
+    border-bottom: 2px solid var(--accent);
+    background: var(--gradient-accent);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}}
 .hist-item {{
     background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 0.5rem;
-    padding: 0.6rem 0.85rem;
-    margin: 0.35rem 0;
-    font-size: 0.82rem;
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem 1rem;
+    margin: 0.5rem 0;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.9rem;
     color: var(--text);
     cursor: pointer;
     transition: var(--transition);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }}
 .hist-item:hover {{
     border-color: var(--accent);
-    background: {T['accent']}18;
-    transform: translateX(4px);
+    background: var(--accent);
+    color: var(--btn-text);
+    transform: translateX(6px) scale(1.03);
+    box-shadow: 0 6px 20px var(--accent);
 }}
 
 /* ── Spinner override ───────────────────────────────────── */

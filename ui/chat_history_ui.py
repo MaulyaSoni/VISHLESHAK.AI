@@ -1,5 +1,6 @@
 """
 Chat History Sidebar — shows DB-persisted conversations for the logged-in user
+Clean, modern UI with bold accents
 """
 
 from __future__ import annotations
@@ -29,20 +30,124 @@ def _group_label(conv_created_at: datetime | None) -> str:
 
 
 def _css() -> None:
-    T_accent = "#7C3AED" if st.session_state.get("dark_mode", True) else "#4F46E5"
+    """Inject Claude-inspired chat history sidebar CSS"""
+    dark_mode = st.session_state.get("dark_mode", True)
+    
+    if dark_mode:
+        bg_primary = "#0D0F1C"
+        bg_secondary = "#161B2E"
+        bg_tertiary = "#1F2638"
+        accent = "#6366F1"
+        accent2 = "#06B6D4"
+        accent3 = "#10B981"
+        text_primary = "#F8FAFC"
+        text_secondary = "#94A3B8"
+        border = "#2D3548"
+        glow = "rgba(99, 102, 241, 0.25)"
+        gradient = "linear-gradient(135deg, #6366F1, #06B6D4)"
+    else:
+        bg_primary = "#FFFFFF"
+        bg_secondary = "#F8FAFC"
+        bg_tertiary = "#F1F5F9"
+        accent = "#4F46E5"
+        accent2 = "#0891B2"
+        accent3 = "#059669"
+        text_primary = "#0F172A"
+        text_secondary = "#475569"
+        border = "#E2E8F0"
+        glow = "rgba(79, 70, 229, 0.15)"
+        gradient = "linear-gradient(135deg, #4F46E5, #0891B2)"
+    
     st.markdown(f"""
     <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    .sidebar-section {{
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 1.2rem;
+        font-weight: 700;
+        background: {gradient};
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        padding: 1rem 0 0.75rem;
+        margin-top: 1.5rem;
+        border-bottom: 2px solid {accent};
+        letter-spacing: -0.01em;
+    }}
     .hist-group-label {{
-        font-size: 0.68rem;
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 0.75rem;
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.08em;
-        color: {T_accent};
-        padding: 0.6rem 0 0.2rem;
+        color: {accent};
+        padding: 1rem 0 0.5rem;
+        margin-top: 0.5rem;
+    }}
+    .hist-item {{
+        background: {bg_tertiary};
+        border: 1.5px solid {border};
+        border-radius: 0.75rem;
+        padding: 0.85rem 1.1rem;
+        margin: 0.5rem 0;
+        font-family: 'Inter', sans-serif;
+        font-size: 0.875rem;
+        color: {text_primary};
+        cursor: pointer;
+        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        position: relative;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }}
+    .hist-item:hover {{
+        border-color: {accent};
+        background: {bg_secondary};
+        color: {accent};
+        transform: translateX(4px);
+        box-shadow: 0 4px 12px {glow};
     }}
     .hist-active {{
-        border-color: {T_accent} !important;
-        background: {T_accent}22 !important;
+        border-color: {accent} !important;
+        background: {accent} !important;
+        color: #FFFFFF !important;
+        box-shadow: 0 4px 16px {glow} !important;
+    }}
+    
+    /* Search input styling */
+    .stTextInput > div > div > input {{
+        background: {bg_tertiary} !important;
+        border: 1.5px solid {border} !important;
+        border-radius: 0.75rem !important;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 0.95rem !important;
+        padding: 0.75rem 1rem !important;
+        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        color: {text_primary} !important;
+    }}
+    .stTextInput > div > div > input:focus {{
+        border-color: {accent} !important;
+        box-shadow: 0 0 0 4px {glow} !important;
+        background: {bg_secondary} !important;
+    }}
+    
+    /* Button styling */
+    .stButton > button {{
+        background: {gradient} !important;
+        color: #FFFFFF !important;
+        border: none !important;
+        border-radius: 0.75rem !important;
+        font-family: 'Space Grotesk', sans-serif !important;
+        font-weight: 600 !important;
+        font-size: 1rem !important;
+        padding: 0.7rem 1.5rem !important;
+        box-shadow: 0 4px 12px {glow} !important;
+        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    }}
+    .stButton > button:hover {{
+        transform: translateY(-2px) scale(1.02) !important;
+        box-shadow: 0 6px 20px {glow} !important;
     }}
     </style>
     """, unsafe_allow_html=True)
