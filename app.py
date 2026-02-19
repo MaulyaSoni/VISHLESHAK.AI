@@ -43,6 +43,19 @@ from analyzers.insight_generator import InsightGenerator
 from chatbot.qa_chain import EnhancedQAChain, DataContextManager
 from utils.dashboard_visualizer import DashboardVisualizer
 
+# ── auth & persistence imports ─────────────────────────────────────────────────
+try:
+    from database.db_manager import init_database
+    from ui.auth_ui import show_auth_page
+    from ui.chat_history_ui import render_chat_history_sidebar
+    from ui.user_settings_ui import render_user_settings
+    from database.chat_repository import ChatRepository
+    AUTH_AVAILABLE = True
+    init_database()
+except Exception as _auth_err:
+    AUTH_AVAILABLE = False
+    logger.warning(f"Auth system not available: {_auth_err}")
+
 # ── agentic imports ────────────────────────────────────────────────────────────
 try:
     from agentic_core import create_vishleshak_agent
@@ -90,10 +103,23 @@ defaults = dict(
     initialized=False,
     generating_visuals=False,  # NEW: track visual generation state
     charts_cache=None,         # NEW: cache generated charts
+    # auth
+    auth_user=None,
+    auth_token=None,
+    current_conv_id=None,
+    show_settings=False,
 )
 for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
+
+# ─────────────────────────────────────────────────────────────────────────────
+# AUTH GATE  — show login page if not authenticated
+# ─────────────────────────────────────────────────────────────────────────────
+if AUTH_AVAILABLE and st.session_state.auth_user is None:
+    authenticated = show_auth_page()
+    if not authenticated:
+        st.stop()
 
 # ─────────────────────────────────────────────────────────────────────────────
 # THEME TOKENS
@@ -705,13 +731,39 @@ hr {{
 # SIDEBAR
 # ─────────────────────────────────────────────────────────────────────────────
 with st.sidebar:
-    # Brand
-    st.markdown("""
+    # Brand + user info
+    user_label = ""
+    if AUTH_AVAILABLE and st.session_state.auth_user:
+        u = st.session_state.auth_user
+        user_label = f"<span style='font-size:0.75rem;color:var(--muted)'>👤 {u.username}</span>"
+
+    st.markdown(f"""
     <div class="sidebar-brand">
         <span class="sidebar-brand-icon">🔬</span>
         <span class="sidebar-brand-name">Vishleshak AI</span>
+        {user_label}
     </div>
     """, unsafe_allow_html=True)
+
+    # Logout button
+    if AUTH_AVAILABLE and st.session_state.auth_user:
+        col_set, col_out = st.columns(2)
+        with col_set:
+            if st.button("⚙️ Settings", use_container_width=True, key="sidebar_settings_btn"):
+                st.session_state.show_settings = not st.session_state.get("show_settings", False)
+                st.rerun()
+        with col_out:
+            if st.button("🚪 Logout", use_container_width=True, key="sidebar_logout_btn"):
+                try:
+                    from auth.auth_manager import AuthManager
+                    AuthManager().logout_user(st.session_state.auth_token or "")
+                except Exception:
+                    pass
+                for k in ["auth_user", "auth_token", "current_conv_id", "chat_history",
+                          "qa_chain", "agent", "analysis_result", "data"]:
+                    st.session_state[k] = None
+                st.session_state.chat_history = []
+                st.rerun()
 
     # ── Theme toggle ────────────────────────────────────────
     st.markdown('<div class="sidebar-section">Appearance</div>', unsafe_allow_html=True)
@@ -753,45 +805,47 @@ with st.sidebar:
                 help="Display agent's thought → action → observation loop"
             )
 
-    # ── Chat History ─────────────────────────────────────────
+    # ── Chat History (DB-backed or in-memory fallback) ──────
     if st.session_state.mode == "Q&A":
-        st.markdown('<div class="sidebar-section">Chat History</div>', unsafe_allow_html=True)
+        if AUTH_AVAILABLE and st.session_state.auth_user:
+            render_chat_history_sidebar(st.session_state.auth_user.id)
+        else:
+            # fallback: in-memory history (unauthenticated)
+            st.markdown('<div class="sidebar-section">Chat History</div>', unsafe_allow_html=True)
 
-        # Save current session if has messages
-        if st.session_state.chat_history:
-            # Check if already saved
-            current_ids = [s["id"] for s in st.session_state.all_sessions]
-            if st.session_state.session_id not in current_ids:
-                first_msg = next(
-                    (m[1][:45] for m in st.session_state.chat_history if m[0] == "user"),
-                    "Untitled chat"
-                )
-                st.session_state.all_sessions.append({
-                    "id": st.session_state.session_id,
-                    "title": first_msg + "…",
-                    "history": st.session_state.chat_history.copy(),
-                })
+            if st.session_state.chat_history:
+                current_ids = [s["id"] for s in st.session_state.all_sessions]
+                if st.session_state.session_id not in current_ids:
+                    first_msg = next(
+                        (m[1][:45] for m in st.session_state.chat_history if m[0] == "user"),
+                        "Untitled chat"
+                    )
+                    st.session_state.all_sessions.append({
+                        "id": st.session_state.session_id,
+                        "title": first_msg + "…",
+                        "history": st.session_state.chat_history.copy(),
+                    })
 
-        if st.session_state.all_sessions:
-            for i, sess in enumerate(reversed(st.session_state.all_sessions[-8:])):
-                short = sess["title"][:40]
-                is_current = sess["id"] == st.session_state.session_id
-                icon = "💬" if is_current else "🕐"
+            if st.session_state.all_sessions:
+                for i, sess in enumerate(reversed(st.session_state.all_sessions[-8:])):
+                    short = sess["title"][:40]
+                    is_current = sess["id"] == st.session_state.session_id
+                    icon = "💬" if is_current else "🕐"
+                    st.markdown(
+                        f'<div class="hist-item" title="{sess["title"]}">{icon} {short}</div>',
+                        unsafe_allow_html=True,
+                    )
+
+                if st.button("➕ New Chat", use_container_width=True):
+                    st.session_state.session_id = str(uuid.uuid4())
+                    st.session_state.chat_history = []
+                    st.session_state.qa_chain = None
+                    st.rerun()
+            else:
                 st.markdown(
-                    f'<div class="hist-item" title="{sess["title"]}">{icon} {short}</div>',
+                    '<div style="color:var(--muted);font-size:0.8rem;padding:0.5rem;">No chat history yet.</div>',
                     unsafe_allow_html=True,
                 )
-
-            if st.button("➕ New Chat", use_container_width=True):
-                st.session_state.session_id = str(uuid.uuid4())
-                st.session_state.chat_history = []
-                st.session_state.qa_chain = None
-                st.rerun()
-        else:
-            st.markdown(
-                '<div style="color:var(--muted);font-size:0.8rem;padding:0.5rem;">No chat history yet.</div>',
-                unsafe_allow_html=True,
-            )
 
     # ── Quality metrics (Q&A only) ───────────────────────────
     if st.session_state.mode == "Q&A" and st.session_state.qa_chain:
@@ -841,6 +895,17 @@ with st.sidebar:
 if not st.session_state.initialized:
     print_startup_summary(st.session_state.session_id)
     st.session_state.initialized = True
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# USER SETTINGS PANEL (shown when toggled)
+# ─────────────────────────────────────────────────────────────────────────────
+if AUTH_AVAILABLE and st.session_state.get("show_settings") and st.session_state.auth_user:
+    with st.expander("⚙️ Account Settings", expanded=True):
+        render_user_settings()
+        if st.button("✕ Close Settings"):
+            st.session_state.show_settings = False
+            st.rerun()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1390,11 +1455,46 @@ else:
             # Check which mode to use
             use_agent = st.session_state.use_agent_mode and st.session_state.agent is not None
             use_qa = st.session_state.qa_chain is not None
-            
+
+            # ── Ensure DB conversation exists ─────────────────
+            def _ensure_db_conversation():
+                if not (AUTH_AVAILABLE and st.session_state.auth_user):
+                    return
+                if st.session_state.get("current_conv_id"):
+                    return
+                try:
+                    chat_repo = ChatRepository()
+                    df_info = None
+                    if st.session_state.data is not None:
+                        _df = st.session_state.data
+                        df_info = {"name": "dataset", "rows": len(_df), "cols": len(_df.columns)}
+                    conv = chat_repo.create_conversation(
+                        user_id=st.session_state.auth_user.id,
+                        title=user_input[:80],
+                        dataset_info=df_info,
+                    )
+                    st.session_state.current_conv_id = conv.id
+                except Exception as _e:
+                    logger.warning("Could not create DB conversation: %s", _e)
+
+            def _save_to_db(role: str, content: str, metadata: dict | None = None):
+                if not (AUTH_AVAILABLE and st.session_state.auth_user):
+                    return
+                cid = st.session_state.get("current_conv_id")
+                if not cid:
+                    return
+                try:
+                    chat_repo = ChatRepository()
+                    chat_repo.save_message(cid, role, content, metadata or {})
+                except Exception as _e:
+                    logger.warning("Could not save message to DB: %s", _e)
+
             if not use_agent and not use_qa:
                 st.error("❌ No AI system initialized. Please refresh the page.")
             else:
+                _ensure_db_conversation()
                 st.session_state.chat_history.append(("user", user_input))
+                _save_to_db("user", user_input)
 
                 prog2 = st.progress(0, text="🔍 Understanding your question…")
                 try:
@@ -1433,19 +1533,19 @@ else:
                         time.sleep(0.3)
                         prog2.empty()
                         
+                        _meta_agent = {
+                            "quality_score": score,
+                            "quality_grade": grade,
+                            "message_id": len(st.session_state.chat_history),
+                            "is_agent": True,
+                            "confidence": confidence,
+                            "reasoning_trace": reasoning_trace,
+                            "tools_used": tools_used,
+                        }
                         st.session_state.chat_history.append((
-                            "bot",
-                            response,
-                            {
-                                "quality_score": score,
-                                "quality_grade": grade,
-                                "message_id": len(st.session_state.chat_history),
-                                "is_agent": True,
-                                "confidence": confidence,
-                                "reasoning_trace": reasoning_trace,
-                                "tools_used": tools_used,
-                            },
+                            "bot", response, _meta_agent,
                         ))
+                        _save_to_db("assistant", response, _meta_agent)
                         st.rerun()
                     
                     else:
@@ -1479,11 +1579,11 @@ else:
                         time.sleep(0.3)
                         prog2.empty()
 
+                        _meta_qa = {"quality_score": score, "quality_grade": grade, "message_id": msg_id}
                         st.session_state.chat_history.append((
-                            "bot",
-                            response,
-                            {"quality_score": score, "quality_grade": grade, "message_id": msg_id},
+                            "bot", response, _meta_qa,
                         ))
+                        _save_to_db("assistant", response, _meta_qa)
                         st.rerun()
 
                 except Exception as e:
