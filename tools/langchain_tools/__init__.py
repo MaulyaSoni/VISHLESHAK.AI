@@ -1,5 +1,5 @@
 """
-LangChain Tools for FINBOT v4
+LangChain Tools for Vishleshak AI v1
 """
 
 from .python_repl import PythonREPLTool

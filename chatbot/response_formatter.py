@@ -1,5 +1,5 @@
 """
-Response Formatter for FINBOT v4
+Response Formatter for Vishleshak AI v1
 Formats responses professionally with consistent structure
 """
 
@@ -115,12 +115,6 @@ class ResponseFormatter:
         """Format simple response"""
         formatted_parts = []
         
-        # Add quality indicator if available
-        if quality_score is not None:
-            grade = self._score_to_grade(quality_score)
-            emoji = self._grade_to_emoji(grade)
-            formatted_parts.append(f"{emoji} **Response Quality: {grade}** ({quality_score:.0f}/100)\n")
-        
         # Add response
         formatted_parts.append(response)
         
@@ -133,11 +127,7 @@ class ResponseFormatter:
         
         formatted_parts = []
         
-        # Add quality indicator
-        if quality_score is not None:
-            grade = self._score_to_grade(quality_score)
-            emoji = self._grade_to_emoji(grade)
-            formatted_parts.append(f"{emoji} **Quality: {grade}** ({quality_score:.0f}/100)\n")
+
         
         # Add separator
         formatted_parts.append("---\n")
@@ -156,12 +146,6 @@ class ResponseFormatter:
         
         # Header
         formatted_parts.append("## 📊 Analysis Results\n")
-        
-        # Quality indicator
-        if quality_score is not None:
-            grade = self._score_to_grade(quality_score)
-            emoji = self._grade_to_emoji(grade)
-            formatted_parts.append(f"> {emoji} **Quality Score:** {grade} ({quality_score:.0f}/100)\n")
         
         # Main content
         formatted_parts.append(response)
@@ -291,7 +275,7 @@ class ResponseFormatter:
         grade = self._score_to_grade(overall)
         emoji = self._grade_to_emoji(grade)
         
-        formatted_parts.append(f"### {emoji} Response Quality: {grade} ({overall:.0f}/100)\n")
+        # Quality details intentionally not shown to users
         
         # Dimension scores
         dimensions = quality_score.get('dimension_scores', {})

@@ -1,5 +1,5 @@
 """
-Intelligent Dashboard Visualizer for FINBOT v4
+Intelligent Dashboard Visualizer for Vishleshak AI v1
 Claude-level smart chart selection — picks the RIGHT chart for every data type.
 
 Returns List[Tuple[str, go.Figure]] so the caller can label each panel.

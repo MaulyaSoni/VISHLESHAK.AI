@@ -1,5 +1,5 @@
 """
-Helper utilities for FINBOT v4
+Helper utilities for Vishleshak AI v1
 Includes error handling and UI helpers
 """
 
@@ -54,7 +54,7 @@ def print_startup_summary(session_id: str) -> None:
         session_id: Current session ID
     """
     print("\n" + "="*60)
-    print("🤖 FINBOT v4 - Startup Summary")
+    print("🤖 Vishleshak AI v1 - Startup Summary")
     print("="*60)
     
     # Vector store stats

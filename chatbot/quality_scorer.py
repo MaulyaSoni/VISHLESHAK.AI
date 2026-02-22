@@ -1,5 +1,5 @@
 """
-Response Quality Scorer for FINBOT v4
+Response Quality Scorer for Vishleshak AI v1
 Multi-dimensional evaluation of LLM responses
 """
 

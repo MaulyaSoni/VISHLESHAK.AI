@@ -1,5 +1,5 @@
 """
-Data Transformer Tool for FINBOT v4
+Data Transformer Tool for Vishleshak AI v1
 Performs data transformations using pandas
 """
 

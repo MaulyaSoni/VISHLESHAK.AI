@@ -1,5 +1,5 @@
 """
-RAG System Configuration for FINBOT v4
+RAG System Configuration for Vishleshak AI v1
 Handles all RAG-related settings and configurations
 """
 import os

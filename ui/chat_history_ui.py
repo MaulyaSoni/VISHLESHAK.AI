@@ -222,12 +222,8 @@ def render_chat_history_sidebar(user_id: int) -> None:
 
             col_title, col_del = st.columns([5, 1])
             with col_title:
-                st.markdown(
-                    f'<div class="hist-item{extra}" title="{conv.title}">{icon} {title}</div>',
-                    unsafe_allow_html=True,
-                )
                 if st.button(
-                    f"Load##{conv.id}", key=f"load_conv_{conv.id}",
+                    f"{icon} {title}", key=f"load_conv_{conv.id}",
                     help=conv.title or "Load conversation",
                     use_container_width=True,
                 ):

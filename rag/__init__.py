@@ -1,5 +1,5 @@
 """
-RAG Module for FINBOT v4
+RAG Module for Vishleshak AI v1
 Retrieval Augmented Generation system with vector stores
 """
 

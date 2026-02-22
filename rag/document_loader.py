@@ -1,5 +1,5 @@
 """
-Document Loader for FINBOT v4
+Document Loader for Vishleshak AI v1
 Loads and processes documents from various formats into vector store
 """
 

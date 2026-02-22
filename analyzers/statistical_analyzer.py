@@ -1,5 +1,5 @@
 """
-Statistical Analyzer for FINBOT v4
+Statistical Analyzer for Vishleshak AI v1
 Performs comprehensive statistical analysis on datasets
 
 Features:

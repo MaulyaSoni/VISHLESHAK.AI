@@ -1,5 +1,5 @@
 """
-Custom Tools for FINBOT v4
+Custom Tools for Vishleshak AI v1
 """
 
 from .base_tool import BaseTool

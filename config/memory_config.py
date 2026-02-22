@@ -1,5 +1,5 @@
 """
-Memory System Configuration for FINBOT v4
+Memory System Configuration for Vishleshak AI v1
 Comprehensive settings for multi-tiered memory system
 """
 

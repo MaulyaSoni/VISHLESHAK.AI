@@ -1,5 +1,5 @@
 -- ============================================================================
--- FINBOT v4 - Enhanced Memory Schema
+-- Vishleshak AI v1 - Enhanced Memory Schema
 -- Supports multi-tiered memory with LSTM-like characteristics
 -- ============================================================================
 

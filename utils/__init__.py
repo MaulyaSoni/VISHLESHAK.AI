@@ -1,5 +1,5 @@
 """
-Utilities Module for FINBOT v4
+Utilities Module for Vishleshak AI v1
 File loading and helper functions
 """
 

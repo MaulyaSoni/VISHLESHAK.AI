@@ -1,5 +1,5 @@
 """
-Conversation Memory System for FINBOT
+Conversation Memory System for Vishleshak AI v1
 Handles chat history with summarization and persistence
 """
 

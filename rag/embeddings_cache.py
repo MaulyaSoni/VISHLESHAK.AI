@@ -1,5 +1,5 @@
 """
-Embeddings Cache for FINBOT v4
+Embeddings Cache for Vishleshak AI v1
 Disk-based caching layer for embeddings using diskcache
 """
 

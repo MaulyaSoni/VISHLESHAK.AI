@@ -156,7 +156,7 @@ Provide a clear, direct answer based on the data provided."""
     def _create_system_message(self, rag_context: str = "", direct_data: str = "") -> str:
         """OPTIMIZED: Create the system message with all available context"""
         
-        base_message = """You are FINBOT, an intelligent financial assistant analyzing uploaded financial data.
+        base_message = """You are Vishleshak AI v1, an intelligent financial assistant analyzing uploaded financial data.
 
 CRITICAL INSTRUCTIONS:
 1. Use the provided data context to answer questions
@@ -280,7 +280,7 @@ class MultiTurnChatbot:
     
     def _generate_greeting(self) -> str:
         """Generate a friendly greeting"""
-        return """Hello! I'm FINBOT 👋
+        return """Hello! I'm Vishleshak AI v1 👋
 
 I can answer questions about your financial data:
 - "What columns are in my dataset?"

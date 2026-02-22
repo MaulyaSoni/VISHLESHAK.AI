@@ -1,5 +1,5 @@
 """
-Tool Registry for FINBOT v4
+Tool Registry for Vishleshak AI v1
 Central registry for all tools (LangChain and custom)
 """
 

@@ -1,5 +1,5 @@
 """
-Enhanced Q&A Chain for FINBOT v4
+Enhanced Q&A Chain for Vishleshak AI v1
 Integrates RAG, tools, memory, and Phase 3 quality learning
 """
 

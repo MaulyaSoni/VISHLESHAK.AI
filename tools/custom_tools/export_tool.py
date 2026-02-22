@@ -1,5 +1,5 @@
 """
-Export Tool for FINBOT v4
+Export Tool for Vishleshak AI v1
 Exports data and results to various formats
 """
 
@@ -78,7 +78,7 @@ class ExportTool(BaseTool):
         
         # Generate filename if not provided
         if filename is None:
-            filename = f"finbot_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            filename = f"Vishleshak AI v1_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         
         # Add timestamp if requested
         elif include_timestamp:

@@ -1,5 +1,5 @@
 """
-Insight Generator for FINBOT v4
+Insight Generator for Vishleshak AI v1
 Combines statistical analysis and pattern detection with AI to generate insights
 
 Features:

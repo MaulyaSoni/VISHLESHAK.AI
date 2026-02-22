@@ -1,5 +1,5 @@
 """
-Preference Learning Engine for FINBOT v4
+Preference Learning Engine for Vishleshak AI v1
 Learns and adapts to user preferences through feedback
 """
 

@@ -1,5 +1,5 @@
 """
-Tools Module for FINBOT v4
+Tools Module for Vishleshak AI v1
 Initializes and registers all tools
 """
 

@@ -1,5 +1,5 @@
 """
-Sequential Chain Manager for FINBOT v4
+Sequential Chain Manager for Vishleshak AI v1
 Orchestrates multi-step reasoning with memory integration
 """
 

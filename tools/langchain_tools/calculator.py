@@ -1,5 +1,5 @@
 """
-Calculator Tool for FINBOT v4
+Calculator Tool for Vishleshak AI v1
 Performs mathematical calculations
 """
 

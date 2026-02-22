@@ -1,5 +1,5 @@
 """
-Chain-of-Thought Reasoner for FINBOT v4
+Chain-of-Thought Reasoner for Vishleshak AI v1
 Implements explicit step-by-step reasoning with memory
 """
 

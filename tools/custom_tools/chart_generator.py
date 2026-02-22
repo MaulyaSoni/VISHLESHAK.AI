@@ -1,5 +1,5 @@
 """
-Chart Generator Tool for FINBOT v4
+Chart Generator Tool for Vishleshak AI v1
 Generates interactive Plotly visualizations
 """
 

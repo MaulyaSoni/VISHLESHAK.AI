@@ -1,5 +1,5 @@
 """
-Data Loader for FINBOT v4
+Data Loader for Vishleshak AI v1
 Handles file loading and validation
 
 Features:

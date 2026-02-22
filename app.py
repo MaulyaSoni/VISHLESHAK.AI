@@ -145,26 +145,26 @@ DARK = dict(
     gradient_accent="linear-gradient(135deg, #6366F1, #06B6D4)",
     gradient_title="linear-gradient(135deg, #6366F1 0%, #06B6D4 50%, #10B981 100%)",
 )
-LIGHT = dict(
-    bg="#FFFFFF",           # Pure white
-    surface="#F8FAFC",      # Elevated surface
-    surface2="#F1F5F9",     # Secondary surface
-    border="#E2E8F0",       # Subtle borders
-    text="#0F172A",         # High contrast text
-    muted="#475569",        # Muted text
-    accent="#4F46E5",       # Deeper indigo - primary
-    accent2="#0891B2",      # Deeper cyan - secondary
-    accent3="#059669",      # Deeper green - success
-    card_bg="#F8FAFC",
-    card_border="#E2E8F0",
-    user_msg="#EEF2FF",     # Light indigo tint
-    bot_msg="#ECFDF5",      # Light green tint
-    user_border="#4F46E5",  # Indigo border
-    bot_border="#059669",   # Green border
-    btn_text="#FFFFFF",
-    gradient_accent="linear-gradient(135deg, #4F46E5, #0891B2)",
-    gradient_title="linear-gradient(135deg, #4F46E5 0%, #0891B2 50%, #059669 100%)",
-)
+# LIGHT = dict(
+#     bg="#FFFFFF",           # Pure white
+#     surface="#F8FAFC",      # Elevated surface
+#     surface2="#F1F5F9",     # Secondary surface
+#     border="#E2E8F0",       # Subtle borders
+#     text="#0F172A",         # High contrast text
+#     muted="#475569",        # Muted text
+#     accent="#4F46E5",       # Deeper indigo - primary
+#     accent2="#0891B2",      # Deeper cyan - secondary
+#     accent3="#059669",      # Deeper green - success
+#     card_bg="#F8FAFC",
+#     card_border="#E2E8F0",
+#     user_msg="#EEF2FF",     # Light indigo tint
+#     bot_msg="#ECFDF5",      # Light green tint
+#     user_border="#4F46E5",  # Indigo border
+#     bot_border="#059669",   # Green border
+#     btn_text="#FFFFFF",
+#     gradient_accent="linear-gradient(135deg, #4F46E5, #0891B2)",
+#     gradient_title="linear-gradient(135deg, #4F46E5 0%, #0891B2 50%, #059669 100%)",
+# )
 
 T = DARK if st.session_state.dark_mode else LIGHT
 
@@ -215,7 +215,55 @@ body, .stApp {{
 }}
 
 /* ── Hide default Streamlit chrome ─────────────────────── */
-#MainMenu, footer, header {{ visibility: hidden; }}
+#MainMenu, footer {{ visibility: hidden; }}
+
+/* ── Header: blend with background ────────────────────────── */
+header[data-testid="stHeader"] {{
+    background: {T['bg']} !important;
+    border: none !important;
+}}
+
+/* Hide specific chrome — do NOT hide stToolbar (contains sidebar toggle in 1.54+) */
+[data-testid="stDecoration"]          {{ display: none !important; }}
+[data-testid="stStatusWidget"]        {{ display: none !important; }}
+/* Hide only the Deploy/Share buttons inside the toolbar, not the whole toolbar */
+[data-testid="stToolbar"] [data-testid="stToolbarActionButton"] {{ display: none !important; }}
+[data-testid="stAppDeployButton"]     {{ display: none !important; }}
+button[title="Deploy this app"]       {{ display: none !important; }}
+button[title="Manage app"]            {{ display: none !important; }}
+
+/* ── Sidebar toggle: cover ALL known Streamlit versions ──── */
+/* Streamlit <1.33 */
+[data-testid="stSidebarCollapsedControl"],
+/* Streamlit 1.33+ */
+[data-testid="collapsedControl"],
+/* Generic fallback */
+button[aria-label="Open sidebar navigation menu"],
+button[aria-label="Expand sidebar"] {{
+    visibility: visible !important;
+    display: flex !important;
+    opacity: 1 !important;
+    pointer-events: all !important;
+    z-index: 999999 !important;
+}}
+[data-testid="stSidebarCollapsedControl"] button,
+[data-testid="collapsedControl"] button {{
+    background: {T['surface']} !important;
+    border: 2px solid {T['accent']} !important;
+    color: {T['accent']} !important;
+    cursor: pointer !important;
+}}
+
+/* ── Sidebar close/collapse button ───────────────────────── */
+[data-testid="stSidebarCollapseButton"],
+button[aria-label="Collapse sidebar"],
+button[aria-label="Close sidebar navigation menu"] {{
+    visibility: visible !important;
+    display: flex !important;
+    pointer-events: all !important;
+    opacity: 1 !important;
+}}
+
 .block-container {{
     padding: 1.5rem 2.5rem 2rem !important;
     max-width: 100% !important;
@@ -619,10 +667,16 @@ button[kind="secondary"]:hover {{
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    background: var(--gradient-accent);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    color: var(--accent);
     margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}}
+.msg-icon {{
+    font-size: 1.15rem;
+    line-height: 1;
+    flex-shrink: 0;
 }}
 .quality-pill {{
     display: inline-block;
@@ -931,7 +985,6 @@ hr {{
 </style>
 """, unsafe_allow_html=True)
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 # SIDEBAR
 # ─────────────────────────────────────────────────────────────────────────────
@@ -968,18 +1021,20 @@ with st.sidebar:
                           "qa_chain", "agent", "analysis_result", "data"]:
                     st.session_state[k] = None
                 st.session_state.chat_history = []
+                st.session_state._sidebar_opened = False  # re-trigger open on next login
                 st.rerun()
 
-    # ── Theme toggle ────────────────────────────────────────
-    st.markdown('<div class="sidebar-section">Appearance</div>', unsafe_allow_html=True)
-    col_t1, col_t2 = st.columns([2, 3])
-    with col_t1:
-        st.markdown("**Theme**", help="Switch between dark and light mode")
-    with col_t2:
-        dark_label = "☀️ Light" if st.session_state.dark_mode else "🌙 Dark"
-        if st.button(dark_label, use_container_width=True):
-            st.session_state.dark_mode = not st.session_state.dark_mode
-            st.rerun()
+    # ── Theme toggle (disabled — dark mode only) ────────────
+    # st.markdown('<div class="sidebar-section">Appearance</div>', unsafe_allow_html=True)
+    # col_t1, col_t2 = st.columns([2, 3])
+    # with col_t1:
+    #     st.markdown("**Theme**", help="Switch between dark and light mode")
+    # with col_t2:
+    #     dark_label = "☀️ Light" if st.session_state.dark_mode else "🌙 Dark"
+    #     if st.button(dark_label, use_container_width=True):
+    #         st.session_state.dark_mode = not st.session_state.dark_mode
+    #         st.rerun()
+    st.session_state.dark_mode = True  # Always dark
 
     # ── Mode selector ────────────────────────────────────────
     st.markdown('<div class="sidebar-section">Mode</div>', unsafe_allow_html=True)
@@ -1052,46 +1107,7 @@ with st.sidebar:
                     unsafe_allow_html=True,
                 )
 
-    # ── Quality metrics (Q&A only) ───────────────────────────
-    if st.session_state.mode == "Q&A" and st.session_state.qa_chain:
-        st.markdown('<div class="sidebar-section">Session Quality</div>', unsafe_allow_html=True)
-        try:
-            qm = st.session_state.qa_chain.get_quality_metrics()
-            if qm.get("total_cycles", 0) > 0:
-                c1, c2 = st.columns(2)
-                c1.metric("Responses", qm["total_cycles"])
-                avg_q = qm.get("avg_quality_all_time", 0)
-                c2.metric("Avg Quality", f"{avg_q:.0f}/100")
-                trend = qm.get("trend_direction", "unknown")
-                trend_map = {
-                    "improving": "📈 Improving",
-                    "stable": "➡️ Stable",
-                    "declining": "📉 Declining",
-                }
-                st.caption(f"Trend: {trend_map.get(trend, '⏳ Learning…')}")
-        except Exception:
-            pass
-
-    # ── System status ────────────────────────────────────────
-    st.markdown('<div class="sidebar-section">System</div>', unsafe_allow_html=True)
-    try:
-        from rag.vector_store import get_vector_store
-        vs = get_vector_store()
-        stats = vs.get_all_stats()
-        total_items = sum(s.get("count", 0) for s in stats.values())
-        st.markdown(f"<small style='color:var(--muted)'>📚 RAG items: **{total_items}**</small>", unsafe_allow_html=True)
-    except Exception:
-        st.markdown("<small style='color:var(--muted)'>📚 RAG: Active</small>", unsafe_allow_html=True)
-
-    try:
-        from tools import get_tool_registry
-        tools = get_tool_registry().get_all_tools()
-        st.markdown(f"<small style='color:var(--muted)'>🛠️ Tools: **{len(tools)} ready**</small>", unsafe_allow_html=True)
-    except Exception:
-        st.markdown("<small style='color:var(--muted)'>🛠️ Tools: Active</small>", unsafe_allow_html=True)
-
-    sess_short = st.session_state.session_id[:8]
-    st.markdown(f"<small style='color:var(--muted)'>🔑 Session: `{sess_short}…`</small>", unsafe_allow_html=True)
+    # System status is intentionally hidden from users
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1526,29 +1542,23 @@ else:
                     logger.error(f"QA init error: {e}", exc_info=True)
 
         # ── Chat history display ──────────────────────────────
-        st.markdown('<div class="chat-wrap">', unsafe_allow_html=True)
         for idx, msg in enumerate(st.session_state.chat_history):
             role    = msg[0]
             content = msg[1]
             meta    = msg[2] if len(msg) > 2 else None
 
             if role == "user":
+                _uname = getattr(st.session_state.get("auth_user"), "username", None) or "You"
                 st.markdown(f"""
                 <div class="chat-msg user">
-                    <div class="msg-label">👤 You</div>
+                    <div class="msg-label"><span class="msg-icon">👤</span> {_uname}</div>
                     {content}
                 </div>
                 """, unsafe_allow_html=True)
             else:
-                grade     = meta.get("quality_grade","") if meta else ""
-                score     = meta.get("quality_score", 0) if meta else 0
-                grade_cls = f"grade-{grade}" if grade else ""
-                pill      = (f'<span class="quality-pill {grade_cls}">Grade {grade} · {score:.0f}/100</span>'
-                             if grade else "")
-
                 st.markdown(f"""
                 <div class="chat-msg bot">
-                    <div class="msg-label">🔬 Vishleshak AI {pill}</div>
+                    <div class="msg-label"><span class="msg-icon">🔬</span> Vishleshak AI</div>
                     {content}
                 </div>
                 """, unsafe_allow_html=True)
@@ -1602,8 +1612,6 @@ else:
                                 st.toast("Noted — I'll improve! 📝")
                             except Exception:
                                 pass
-
-        st.markdown("</div>", unsafe_allow_html=True)
 
         # ── Empty state ───────────────────────────────────────
         if not st.session_state.chat_history:

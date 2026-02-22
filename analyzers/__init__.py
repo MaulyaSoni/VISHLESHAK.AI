@@ -1,5 +1,5 @@
 """
-Analyzers Module for FINBOT v4
+Analyzers Module for Vishleshak AI v1
 Statistical analysis, pattern detection, and insight generation
 """
 

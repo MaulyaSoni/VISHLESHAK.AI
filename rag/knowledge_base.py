@@ -1,5 +1,5 @@
 """
-Knowledge Base Manager for FINBOT v4
+Knowledge Base Manager for Vishleshak AI v1
 Manages domain-specific knowledge loading and updates
 """
 

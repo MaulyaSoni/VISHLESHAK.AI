@@ -1,5 +1,5 @@
 """
-Pattern Detector for FINBOT v4
+Pattern Detector for Vishleshak AI v1
 Detects various patterns in datasets
 
 Features:

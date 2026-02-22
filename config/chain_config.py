@@ -1,5 +1,5 @@
 """
-Sequential Chain Configuration for FINBOT v4
+Sequential Chain Configuration for Vishleshak AI v1
 Settings for multi-step reasoning and chain-of-thought
 """
 

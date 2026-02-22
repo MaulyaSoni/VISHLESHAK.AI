@@ -1,5 +1,5 @@
 """
-Core Module for FINBOT v4
+Core Module for Vishleshak AI v1
 LLM initialization and memory management
 """
 

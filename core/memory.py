@@ -1,5 +1,5 @@
 """
-Chat Memory Management for FINBOT v4
+Chat Memory Management for Vishleshak AI v1
 Persistent conversation history using SQLite
 
 Features:

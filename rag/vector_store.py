@@ -1,5 +1,5 @@
 """
-Vector Store Management for FINBOT v4
+Vector Store Management for Vishleshak AI v1
 Manages ChromaDB collections for RAG system
 """
 

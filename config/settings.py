@@ -1,5 +1,5 @@
 """
-Configuration Settings for FINBOT v4
+Configuration Settings for Vishleshak AI v1
 All application settings in one centralized location
 """
 import os
@@ -67,7 +67,7 @@ ENABLE_CLUSTERING = True
 # ============================================================================
 
 # Page settings
-PAGE_TITLE = "🤖 FINBOT v4 - Advanced Data Intelligence"
+PAGE_TITLE = "🤖 Vishleshak AI v1 - Advanced Data Intelligence"
 PAGE_ICON = "🤖"
 LAYOUT = "wide"  # "centered" or "wide"
 
@@ -77,7 +77,7 @@ LAYOUT = "wide"  # "centered" or "wide"
 
 # Logging settings
 LOG_LEVEL = "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
-LOG_FILE = "logs/finbot.log"  # Log file path
+LOG_FILE = "logs/Vishleshak AI v1.log"  # Log file path
 
 # ============================================================================
 # ADVANCED SETTINGS (Don't modify unless you know what you're doing)

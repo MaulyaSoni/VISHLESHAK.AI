@@ -1,5 +1,5 @@
 """
-Tool System Configuration for FINBOT v4
+Tool System Configuration for Vishleshak AI v1
 Handles all tool-related settings and configurations
 """
 import os

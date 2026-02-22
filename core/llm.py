@@ -1,5 +1,5 @@
 """
-LLM Initialization for FINBOT v4
+LLM Initialization for Vishleshak AI v1
 Manages LLM instances for analysis and chat
 
 Features:

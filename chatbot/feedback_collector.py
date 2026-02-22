@@ -1,5 +1,5 @@
 """
-Feedback Collection System for FINBOT v4
+Feedback Collection System for Vishleshak AI v1
 Collects explicit and implicit feedback for continuous improvement
 """
 

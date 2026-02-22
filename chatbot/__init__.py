@@ -1,5 +1,5 @@
 """
-Chatbot Module for FINBOT v4
+Chatbot Module for Vishleshak AI v1
 Enhanced Q&A system with RAG, tools, and memory
 """
 

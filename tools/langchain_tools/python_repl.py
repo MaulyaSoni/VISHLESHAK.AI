@@ -1,5 +1,5 @@
 """
-Python REPL Tool for FINBOT v4
+Python REPL Tool for Vishleshak AI v1
 Executes Python code safely with sandboxing
 """
 

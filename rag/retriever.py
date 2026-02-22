@@ -1,5 +1,5 @@
 """
-Smart Retriever for FINBOT v4
+Smart Retriever for Vishleshak AI v1
 Implements intelligent retrieval strategies across all RAG use cases
 """
 

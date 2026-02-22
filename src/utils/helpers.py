@@ -1,5 +1,5 @@
 """
-Utility Functions for FINBOT
+Utility Functions for Vishleshak AI v1
 Common helper functions used across the application
 """
 

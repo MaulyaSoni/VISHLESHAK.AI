@@ -1,5 +1,5 @@
 """
-Continuous Improvement Loop for FINBOT v4
+Continuous Improvement Loop for Vishleshak AI v1
 Orchestrates the feedback → learning → improvement cycle
 """
 

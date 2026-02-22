@@ -1,5 +1,5 @@
 """
-Embedding Model Management for FINBOT v4
+Embedding Model Management for Vishleshak AI v1
 Handles embedding generation using HuggingFace sentence-transformers
 """
 

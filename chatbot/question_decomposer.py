@@ -1,5 +1,5 @@
 """
-Question Decomposer for FINBOT v4
+Question Decomposer for Vishleshak AI v1
 Breaks complex questions into manageable sub-questions
 """
 
