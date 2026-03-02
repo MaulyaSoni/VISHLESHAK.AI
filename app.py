@@ -4,6 +4,13 @@ Integrated with Next-Level RAG Intelligence Chatbot
 Version: 1.0.0
 """
 
+# ── load .env FIRST before anything else ────────────────────────────────────
+import os
+from pathlib import Path
+from dotenv import load_dotenv
+_project_root = Path(__file__).resolve().parent
+load_dotenv(_project_root / ".env", override=True)
+
 # ── silence torch before anything else ──────────────────────────────────────
 try:
     import torch
@@ -12,7 +19,6 @@ except Exception:
 
 import streamlit as st
 import pandas as pd
-import os
 import uuid
 import logging
 import warnings

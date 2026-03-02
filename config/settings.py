@@ -3,10 +3,12 @@ Configuration Settings for Vishleshak AI v1
 All application settings in one centralized location
 """
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from .env in project root
+_project_root = Path(__file__).resolve().parent.parent
+load_dotenv(_project_root / ".env", override=True)
 
 # ============================================================================
 # LLM CONFIGURATION

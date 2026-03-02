@@ -5,14 +5,20 @@ Manages SQLite connection, table creation, and session factory
 
 import os
 import logging
+from pathlib import Path
 from contextlib import contextmanager
 from typing import Generator
 
+from dotenv import load_dotenv
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import sessionmaker, Session as DBSession
 from sqlalchemy.pool import StaticPool
 
 from .models import Base
+
+# Load .env before reading any env vars
+_project_root = Path(__file__).resolve().parent.parent
+load_dotenv(_project_root / ".env", override=True)
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +26,10 @@ logger = logging.getLogger(__name__)
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _DB_DIR   = os.path.join(_BASE_DIR, "storage")
 _DB_PATH  = os.path.join(_DB_DIR, "vishleshak.db")
+_LOCAL_DB_URL = f"sqlite:///{_DB_PATH}"
 
 # Allow override via environment variable
-DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{_DB_PATH}")
+DATABASE_URL = os.getenv("DATABASE_URL", _LOCAL_DB_URL)
 
 
 class DatabaseManager:
@@ -43,29 +50,23 @@ class DatabaseManager:
 
         os.makedirs(_DB_DIR, exist_ok=True)
 
-        connect_args: dict = {}
-        kwargs: dict = {}
+        # Try configured DATABASE_URL first; fall back to local SQLite on failure
+        self._db_url = DATABASE_URL
+        self.engine = self._create_engine(self._db_url)
 
-        if DATABASE_URL.startswith("sqlite"):
-            connect_args = {"check_same_thread": False}
-            # Use StaticPool for SQLite so every call reuses the same connection
-            kwargs["poolclass"] = StaticPool
-
-        self.engine = create_engine(
-            DATABASE_URL,
-            connect_args=connect_args,
-            echo=False,         # set True for SQL debug output
-            **kwargs,
-        )
-
-        # Enable WAL mode & foreign keys for SQLite
-        if DATABASE_URL.startswith("sqlite"):
-            @event.listens_for(self.engine, "connect")
-            def _set_sqlite_pragma(dbapi_conn, _):  # noqa: ANN001
-                cursor = dbapi_conn.cursor()
-                cursor.execute("PRAGMA journal_mode=WAL")
-                cursor.execute("PRAGMA foreign_keys=ON")
-                cursor.close()
+        # Connection test — fallback to SQLite if remote DB unreachable
+        if not self._db_url.startswith("sqlite"):
+            try:
+                with self.engine.connect() as conn:
+                    conn.execute(text("SELECT 1"))
+                logger.info("✅ Connected to remote database")
+            except Exception as exc:
+                logger.warning(
+                    "⚠️ Remote database unreachable (%s). Falling back to local SQLite.",
+                    exc.__class__.__name__,
+                )
+                self._db_url = _LOCAL_DB_URL
+                self.engine = self._create_engine(self._db_url)
 
         self.SessionLocal = sessionmaker(
             bind=self.engine,
@@ -75,7 +76,34 @@ class DatabaseManager:
         )
 
         self._create_tables()
-        logger.info("✅ Database initialised at %s", DATABASE_URL)
+        logger.info("✅ Database initialised at %s", self._db_url)
+
+    def _create_engine(self, url: str):
+        """Create a SQLAlchemy engine for the given URL."""
+        connect_args: dict = {}
+        kwargs: dict = {}
+
+        if url.startswith("sqlite"):
+            connect_args = {"check_same_thread": False}
+            kwargs["poolclass"] = StaticPool
+
+        engine = create_engine(
+            url,
+            connect_args=connect_args,
+            echo=False,
+            **kwargs,
+        )
+
+        # Enable WAL mode & foreign keys for SQLite
+        if url.startswith("sqlite"):
+            @event.listens_for(engine, "connect")
+            def _set_sqlite_pragma(dbapi_conn, _):  # noqa: ANN001
+                cursor = dbapi_conn.cursor()
+                cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute("PRAGMA foreign_keys=ON")
+                cursor.close()
+
+        return engine
 
     # ── Table creation ──────────────────────────────────────────────────────
     def _create_tables(self) -> None:
