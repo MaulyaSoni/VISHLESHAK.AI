@@ -1053,23 +1053,23 @@ with st.sidebar:
     st.session_state.mode = "Analysis" if "Analysis" in mode_choice else "Q&A"
     
     # ── Agent mode toggle (Q&A only) ─────────────────────────
-    if st.session_state.mode == "Q&A" and AGENTIC_AVAILABLE:
-        st.markdown('<div class="sidebar-section">AI Mode</div>', unsafe_allow_html=True)
-        agent_mode = st.checkbox(
-            "🤖 Enable Agentic Mode",
-            value=st.session_state.use_agent_mode,
-            help="Use autonomous ReAct agent with specialized tools"
-        )
-        if agent_mode != st.session_state.use_agent_mode:
-            st.session_state.use_agent_mode = agent_mode
-            st.session_state.agent = None  # Reset agent
+    # if st.session_state.mode == "Q&A" and AGENTIC_AVAILABLE:
+    #     st.markdown('<div class="sidebar-section">AI Mode</div>', unsafe_allow_html=True)
+    #     agent_mode = st.checkbox(
+    #         "🤖 Enable Agentic Mode",
+    #         value=st.session_state.use_agent_mode,
+    #         help="Use autonomous ReAct agent with specialized tools"
+    #     )
+    #     if agent_mode != st.session_state.use_agent_mode:
+    #         st.session_state.use_agent_mode = agent_mode
+    #         st.session_state.agent = None  # Reset agent
         
-        if st.session_state.use_agent_mode:
-            st.session_state.show_agent_thinking = st.checkbox(
-                "👁️ Show Reasoning Process",
-                value=st.session_state.show_agent_thinking,
-                help="Display agent's thought → action → observation loop"
-            )
+    #     if st.session_state.use_agent_mode:
+    #         st.session_state.show_agent_thinking = st.checkbox(
+    #             "👁️ Show Reasoning Process",
+    #             value=st.session_state.show_agent_thinking,
+    #             help="Display agent's thought → action → observation loop"
+    #         )
 
     # ── Chat History (DB-backed or in-memory fallback) ──────
     if st.session_state.mode == "Q&A":
@@ -1840,8 +1840,7 @@ else:
 # ─────────────────────────────────────────────────────────────────────────────
 st.markdown("""
 <div class="app-footer">
-    🔬 <strong>Vishleshak AI v1.0</strong> &nbsp;·&nbsp;
-    Memory ✓ &nbsp;·&nbsp; Reasoning ✓ &nbsp;·&nbsp; Learning ✓ &nbsp;·&nbsp; RAG ✓
-    &nbsp;·&nbsp; Built with ♥ using LangChain · ChromaDB · Groq LLaMA
+    🔬 <strong>Vishleshak AI v1</strong> &nbsp;·&nbsp;
+    Built by Maulya Soni using LangChain 
 </div>
 """, unsafe_allow_html=True)
