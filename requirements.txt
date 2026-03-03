@@ -1,5 +1,5 @@
 # Core Dependencies
-streamlit==1.32.0
+streamlit>=1.42.0
 python-dotenv==1.0.1
 
 # LangChain & LLM
@@ -13,6 +13,7 @@ langchain-experimental==0.0.52
 pandas==2.2.1
 numpy==1.26.4
 openpyxl==3.1.2
+xlrd>=2.0.1
 
 # Statistical Analysis
 scipy==1.12.0

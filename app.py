@@ -7,9 +7,21 @@ Version: 1.0.0
 # ── load .env FIRST before anything else ────────────────────────────────────
 import os
 from pathlib import Path
-from dotenv import load_dotenv
-_project_root = Path(__file__).resolve().parent
-load_dotenv(_project_root / ".env", override=True)
+try:
+    from dotenv import load_dotenv
+    _project_root = Path(__file__).resolve().parent
+    load_dotenv(_project_root / ".env", override=True)
+except Exception:
+    pass  # Streamlit Cloud: secrets come from st.secrets, .env not needed
+
+# ── Streamlit Cloud: push st.secrets into os.environ ────────────────────────
+try:
+    import streamlit as _st
+    for _k, _v in _st.secrets.items():
+        if isinstance(_v, str):
+            os.environ.setdefault(_k, _v)
+except Exception:
+    pass
 
 # ── silence torch before anything else ──────────────────────────────────────
 try:
