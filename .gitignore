@@ -36,15 +36,9 @@ ENV/
 # Environment variables
 .env
 
-# Data directories
-data/uploads/*
-data/memory/*
-data/vector_store/*
-
-# Keep directory structure
-!data/uploads/.gitkeep
-!data/memory/.gitkeep
-!data/vector_store/.gitkeep
+# Data & storage directories
+data/
+storage/
 
 # Streamlit
 .streamlit/
@@ -58,3 +52,6 @@ Thumbs.db
 
 .env.example
 .env
+
+storage/
+data/
