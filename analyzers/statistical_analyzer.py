@@ -12,12 +12,18 @@ Features:
 
 import pandas as pd
 import numpy as np
-from scipy import stats
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 from typing import Dict, List, Any, Optional
 import warnings
 warnings.filterwarnings('ignore')
+
+try:
+    from scipy import stats
+    _SCIPY_AVAILABLE = True
+except ImportError:
+    stats = None
+    _SCIPY_AVAILABLE = False
 
 
 class StatisticalAnalyzer:
@@ -111,8 +117,8 @@ class StatisticalAnalyzer:
                 'unique_pct': float(data.nunique() / len(data) * 100)
             }
             
-            # Normality test (if enough samples)
-            if len(data) >= 8:
+            # Normality test (if enough samples and scipy is available)
+            if len(data) >= 8 and _SCIPY_AVAILABLE:
                 try:
                     stat, p_value = stats.shapiro(data.sample(min(5000, len(data))))
                     analysis['normality_p_value'] = float(p_value)
@@ -120,6 +126,9 @@ class StatisticalAnalyzer:
                 except:
                     analysis['normality_p_value'] = None
                     analysis['is_normal'] = None
+            else:
+                analysis['normality_p_value'] = None
+                analysis['is_normal'] = None
             
             results[col] = analysis
         
