@@ -176,7 +176,7 @@ def render_chat_history_sidebar(user_id: int) -> None:
     )
 
     # ── New Chat button ───────────────────────────────────────────────────────
-    if st.button("➕ New Chat", use_container_width=True, key="new_chat_btn"):
+    if st.button("➕ New Chat", width='stretch', key="new_chat_btn"):
         import uuid
         st.session_state.session_id    = str(uuid.uuid4())
         st.session_state.chat_history  = []
@@ -225,7 +225,7 @@ def render_chat_history_sidebar(user_id: int) -> None:
                 if st.button(
                     f"{icon} {title}", key=f"load_conv_{conv.id}",
                     help=conv.title or "Load conversation",
-                    use_container_width=True,
+                    width='stretch',
                 ):
                     _load_conversation(conv.id)
 
@@ -238,7 +238,7 @@ def render_chat_history_sidebar(user_id: int) -> None:
                     st.rerun()
 
     # ── Archive button (bottom) ───────────────────────────────────────────────
-    if st.button("📦 Archive Current", use_container_width=True, key="archive_btn"):
+    if st.button("📦 Archive Current", width='stretch', key="archive_btn"):
         cid = st.session_state.get("current_conv_id")
         if cid:
             chat_repo.archive_conversation(cid)

@@ -391,7 +391,7 @@ def show_auth_page() -> bool:
     with col_login:
         if st.button(
             "🔓 Login",
-            use_container_width=True,
+            width='stretch',
             type="primary" if st.session_state.auth_tab == "Login" else "secondary",
             key="login_tab",
         ):
@@ -400,7 +400,7 @@ def show_auth_page() -> bool:
     with col_reg:
         if st.button(
             "📝 Register",
-            use_container_width=True,
+            width='stretch',
             type="primary" if st.session_state.auth_tab == "Register" else "secondary",
             key="register_tab",
         ):
@@ -425,7 +425,7 @@ def show_auth_page() -> bool:
                 type="password",
                 key="login_password",
             )
-            submitted = st.form_submit_button("Login →", use_container_width=True)
+            submitted = st.form_submit_button("Login →", width='stretch')
 
         if submitted:
             email = st.session_state.login_email
@@ -476,7 +476,7 @@ def show_auth_page() -> bool:
                 type="password",
                 key="reg_confirm",
             )
-            submitted = st.form_submit_button("Create Account →", use_container_width=True)
+            submitted = st.form_submit_button("Create Account →", width='stretch')
 
         if submitted:
             full_name = st.session_state.reg_fullname

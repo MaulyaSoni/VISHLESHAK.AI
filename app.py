@@ -1013,11 +1013,11 @@ with st.sidebar:
     if AUTH_AVAILABLE and st.session_state.auth_user:
         col_set, col_out = st.columns(2)
         with col_set:
-            if st.button("⚙️ Settings", use_container_width=True, key="sidebar_settings_btn"):
+            if st.button("⚙️ Settings", width='stretch', key="sidebar_settings_btn"):
                 st.session_state.show_settings = not st.session_state.get("show_settings", False)
                 st.rerun()
         with col_out:
-            if st.button("🚪 Logout", use_container_width=True, key="sidebar_logout_btn"):
+            if st.button("🚪 Logout", width='stretch', key="sidebar_logout_btn"):
                 try:
                     from auth.auth_manager import AuthManager
                     AuthManager().logout_user(st.session_state.auth_token or "")
@@ -1102,7 +1102,7 @@ with st.sidebar:
                         unsafe_allow_html=True,
                     )
 
-                if st.button("➕ New Chat", use_container_width=True):
+                if st.button("➕ New Chat", width='stretch'):
                     st.session_state.session_id = str(uuid.uuid4())
                     st.session_state.chat_history = []
                     st.session_state.qa_chain = None
@@ -1288,7 +1288,7 @@ else:
 
         # ── Buttons ──────────────────────────────────────────
         if st.session_state.analysis_result is None:
-            if st.button("🚀 Analyse Data", type="primary", use_container_width=False):
+            if st.button("🚀 Analyse Data", type="primary", width='content'):
                 prog = st.progress(0, text="🔄 Initialising analysis engine…")
                 try:
                     prog.progress(20, text="📐 Computing statistics…")
@@ -1310,7 +1310,7 @@ else:
         else:
             btn1, btn2, btn3 = st.columns([2, 2, 6])
             with btn1:
-                if st.button("🔄 Re-Analyse", use_container_width=True):
+                if st.button("🔄 Re-Analyse", width='stretch'):
                     prog = st.progress(0, text="🔄 Re-running…")
                     try:
                         prog.progress(30, text="📐 Computing…")
@@ -1330,7 +1330,7 @@ else:
                         handle_error(e, "Re-Analysis")
             with btn2:
                 vis_label = "🔒 Hide Charts" if st.session_state.show_visuals else "📊 Generate Visuals"
-                if st.button(vis_label, use_container_width=True):
+                if st.button(vis_label, width='stretch'):
                     if not st.session_state.show_visuals:
                         # Trigger visual generation
                         st.session_state.generating_visuals = True
@@ -1458,7 +1458,7 @@ else:
                             with tab_obj:
                                 for i, (label, fig) in enumerate(tab_charts, 1):
                                     st.markdown(f"#### {label}")
-                                    st.plotly_chart(fig, use_container_width=True)
+                                    st.plotly_chart(fig, width='stretch')
                                     if i < len(tab_charts):
                                         st.markdown("---")
                     except Exception as e:
@@ -1488,7 +1488,7 @@ else:
                         try:
                             st.dataframe(
                                 pd.DataFrame(num_analysis).T.round(3),
-                                use_container_width=True
+                                width='stretch'
                             )
                         except Exception:
                             st.json(num_analysis)
@@ -1644,7 +1644,7 @@ else:
             cols = st.columns(3)
             for i, sug in enumerate(suggestions):
                 with cols[i % 3]:
-                    if st.button(sug, use_container_width=True, key=f"sug_{i}"):
+                    if st.button(sug, width='stretch', key=f"sug_{i}"):
                         st.session_state._quick_question = sug
                         st.rerun()
 
@@ -1666,7 +1666,7 @@ else:
                     )
                 with icol2:
                     process_question = st.form_submit_button(
-                        "Send 🚀", type="primary", use_container_width=True
+                        "Send 🚀", type="primary", width='stretch'
                     )
 
         # ── Process question ──────────────────────────────────

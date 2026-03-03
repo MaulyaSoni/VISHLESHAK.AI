@@ -86,6 +86,14 @@ class DatabaseManager:
         if url.startswith("sqlite"):
             connect_args = {"check_same_thread": False}
             kwargs["poolclass"] = StaticPool
+        else:
+            # For PostgreSQL: pre-ping tests the connection before use so stale
+            # connections (e.g. after a server idle-timeout) are transparently
+            # recycled instead of raising OperationalError at query time.
+            kwargs["pool_pre_ping"] = True
+            kwargs["pool_recycle"] = 1800   # recycle connections every 30 min
+            kwargs["pool_size"] = 5
+            kwargs["max_overflow"] = 10
 
         engine = create_engine(
             url,

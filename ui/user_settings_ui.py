@@ -466,7 +466,7 @@ def render_user_settings() -> None:
         st.markdown("#### ✏️ Edit Profile")
         with st.form("profile_form"):
             new_name = st.text_input("Full Name", value=user.full_name or "", key="prof_name")
-            submitted = st.form_submit_button("💾 Save Changes", use_container_width=True)
+            submitted = st.form_submit_button("💾 Save Changes", width='stretch')
         if submitted:
             try:
                 user_repo.update_user(user.id, full_name=new_name)
@@ -488,7 +488,7 @@ def render_user_settings() -> None:
                 key="new_pw"
             )
             conf_pass = st.text_input("Confirm New Password", type="password", key="conf_pw")
-            submitted = st.form_submit_button("🔄 Update Password", use_container_width=True)
+            submitted = st.form_submit_button("🔄 Update Password", width='stretch')
 
         if submitted:
             if not all([old_pass, new_pass, conf_pass]):
@@ -510,7 +510,7 @@ def render_user_settings() -> None:
         st.warning("⚠️ This will permanently delete your account and all data. This action cannot be undone.")
         with st.form("delete_account_form"):
             confirm_pass = st.text_input("Confirm Password to Delete", type="password", key="del_pw")
-            submitted = st.form_submit_button("🗑️ Permanently Delete My Account", use_container_width=True)
+            submitted = st.form_submit_button("🗑️ Permanently Delete My Account", width='stretch')
 
         if submitted:
             try:
@@ -539,7 +539,7 @@ def render_user_settings() -> None:
                 value=current_thinking,
                 key="thinking_check"
             )
-            submitted = st.form_submit_button("💾 Save Preferences", use_container_width=True)
+            submitted = st.form_submit_button("💾 Save Preferences", width='stretch')
 
         if submitted:
             try:
@@ -563,7 +563,7 @@ def render_user_settings() -> None:
         convs = chat_repo.get_user_conversations(user.id, limit=200)
         st.markdown(f"You have **{len(convs)}** conversation(s) on record.")
 
-        if st.button(" Download All as JSON", use_container_width=True, key="download_json"):
+        if st.button(" Download All as JSON", width='stretch', key="download_json"):
             if convs:
                 all_data = []
                 for conv in convs:
@@ -574,7 +574,7 @@ def render_user_settings() -> None:
                     data=json_str,
                     file_name="vishleshak_conversations.json",
                     mime="application/json",
-                    use_container_width=True,
+                    width='stretch',
                     key="download_btn"
                 )
             else:

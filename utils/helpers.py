@@ -90,7 +90,7 @@ def clean_dataframe_display(df, num_rows: int = 10):
     """
     st.dataframe(
         df.head(num_rows),
-        use_container_width=True,
+        width='stretch',
         height=300,
         hide_index=True
     )
