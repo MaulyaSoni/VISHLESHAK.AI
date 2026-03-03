@@ -71,6 +71,12 @@ class DatabaseManager:
 
         # Connection test — fallback to SQLite if remote DB unreachable or driver missing
         if not self._db_url.startswith("sqlite"):
+            # Log the host/port being attempted (mask password for safety)
+            try:
+                _p = urlparse(self._db_url)
+                logger.info("🔌 Attempting DB connection → %s:%s%s", _p.hostname, _p.port, _p.path)
+            except Exception:
+                pass
             try:
                 self.engine = self._create_engine(self._db_url)
                 with self.engine.connect() as conn:
