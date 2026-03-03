@@ -4,10 +4,12 @@ Manages SQLite connection, table creation, and session factory
 """
 
 import os
+import socket
 import logging
 from pathlib import Path
 from contextlib import contextmanager
 from typing import Generator
+from urllib.parse import urlparse, urlunparse
 
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import sessionmaker, Session as DBSession
@@ -96,6 +98,28 @@ class DatabaseManager:
         # Mark initialized only after full successful setup
         self._initialized = True
 
+    @staticmethod
+    def _ipv4_url(url: str) -> str:
+        """
+        Resolve the hostname in a PostgreSQL URL to its first IPv4 address.
+        Streamlit Cloud's network may only route IPv6 for some hosts, while
+        Supabase's direct endpoint does not accept IPv6 — this forces IPv4.
+        Falls back to the original URL if IPv4 resolution fails.
+        """
+        try:
+            parsed = urlparse(url)
+            host = parsed.hostname
+            port = parsed.port or 5432
+            ipv4_results = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
+            if ipv4_results:
+                ipv4_addr = ipv4_results[0][4][0]
+                # Rebuild netloc replacing hostname with IPv4 literal
+                new_netloc = parsed.netloc.replace(host, ipv4_addr, 1)
+                return urlunparse(parsed._replace(netloc=new_netloc))
+        except Exception:
+            pass
+        return url
+
     def _create_engine(self, url: str):
         """Create a SQLAlchemy engine for the given URL."""
         connect_args: dict = {}
@@ -105,11 +129,15 @@ class DatabaseManager:
             connect_args = {"check_same_thread": False}
             kwargs["poolclass"] = StaticPool
         else:
-            # For PostgreSQL: pre-ping tests the connection before use so stale
-            # connections (e.g. after a server idle-timeout) are transparently
-            # recycled instead of raising OperationalError at query time.
+            # Force IPv4 so Streamlit Cloud (IPv6-only egress) can reach Supabase
+            url = self._ipv4_url(url)
+            connect_args = {
+                "sslmode": "require",
+                "connect_timeout": 10,
+            }
+            # pre-ping recycles stale connections transparently
             kwargs["pool_pre_ping"] = True
-            kwargs["pool_recycle"] = 1800   # recycle connections every 30 min
+            kwargs["pool_recycle"] = 1800
             kwargs["pool_size"] = 5
             kwargs["max_overflow"] = 10
 
