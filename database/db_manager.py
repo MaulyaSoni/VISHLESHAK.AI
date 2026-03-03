@@ -21,9 +21,19 @@ try:
     _project_root = Path(__file__).resolve().parent.parent
     _env_file = _project_root / ".env"
     if _env_file.exists():
-        load_dotenv(_env_file, override=True)
+        load_dotenv(_env_file, override=False)
 except ImportError:
     pass  # Not available on Streamlit Cloud; env vars set via Secrets
+
+# Inject Streamlit secrets → os.environ so DATABASE_URL is always reachable via os.getenv()
+try:
+    import streamlit as st
+    _SECRET_KEYS = ["DATABASE_URL", "GROQ_API_KEY", "SUPABASE_URL", "SUPABASE_KEY"]
+    for _k in _SECRET_KEYS:
+        if _k in st.secrets and not os.environ.get(_k):
+            os.environ[_k] = str(st.secrets[_k])
+except Exception:
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -56,21 +66,23 @@ class DatabaseManager:
 
         # Try configured DATABASE_URL first; fall back to local SQLite on failure
         self._db_url = DATABASE_URL
-        self.engine = self._create_engine(self._db_url)
 
-        # Connection test — fallback to SQLite if remote DB unreachable
+        # Connection test — fallback to SQLite if remote DB unreachable or driver missing
         if not self._db_url.startswith("sqlite"):
             try:
+                self.engine = self._create_engine(self._db_url)
                 with self.engine.connect() as conn:
                     conn.execute(text("SELECT 1"))
                 logger.info("✅ Connected to remote database")
             except Exception as exc:
                 logger.warning(
-                    "⚠️ Remote database unreachable (%s). Falling back to local SQLite.",
-                    exc.__class__.__name__,
+                    "⚠️ Remote database unreachable (%s: %s). Falling back to local SQLite.",
+                    exc.__class__.__name__, exc,
                 )
                 self._db_url = _LOCAL_DB_URL
                 self.engine = self._create_engine(self._db_url)
+        else:
+            self.engine = self._create_engine(self._db_url)
 
         self.SessionLocal = sessionmaker(
             bind=self.engine,

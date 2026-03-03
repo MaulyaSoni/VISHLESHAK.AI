@@ -5,15 +5,37 @@ All application settings in one centralized location
 import os
 from pathlib import Path
 
-# Load environment variables from .env in project root (local dev only)
-try:
-    from dotenv import load_dotenv
-    _project_root = Path(__file__).resolve().parent.parent
-    _env_file = _project_root / ".env"
-    if _env_file.exists():
-        load_dotenv(_env_file, override=True)
-except ImportError:
-    pass  # python-dotenv not installed; env vars must be set externally (e.g., Streamlit Cloud secrets)
+# ── Secret loader: works on both local (.env) and Streamlit Cloud (st.secrets) ──
+def _load_secrets() -> None:
+    """
+    Priority:
+      1. Streamlit secrets  (Streamlit Cloud dashboard / .streamlit/secrets.toml)
+      2. .env file          (local development)
+    Both are injected into os.environ so the rest of the code uses os.getenv() uniformly.
+    """
+    # 1. Try Streamlit secrets first (available both on Cloud and locally via secrets.toml)
+    try:
+        import streamlit as st
+        _SECRET_KEYS = [
+            "GROQ_API_KEY", "DATABASE_URL",
+            "SUPABASE_URL", "SUPABASE_KEY",
+        ]
+        for key in _SECRET_KEYS:
+            if key in st.secrets and not os.environ.get(key):
+                os.environ[key] = str(st.secrets[key])
+    except Exception:
+        pass  # Streamlit not yet initialised or secrets not set — that's fine
+
+    # 2. Fall back to .env (local dev)
+    try:
+        from dotenv import load_dotenv
+        _env_file = Path(__file__).resolve().parent.parent / ".env"
+        if _env_file.exists():
+            load_dotenv(_env_file, override=False)  # override=False: don't overwrite st.secrets
+    except ImportError:
+        pass
+
+_load_secrets()
 
 # ============================================================================
 # LLM CONFIGURATION

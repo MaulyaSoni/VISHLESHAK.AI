@@ -40,8 +40,8 @@ ENV/
 data/
 storage/
 
-# Streamlit
-.streamlit/
+# Streamlit — ignore secrets only, commit config.toml
+.streamlit/secrets.toml
 
 # OS
 .DS_Store
