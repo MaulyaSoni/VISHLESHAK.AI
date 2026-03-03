@@ -9,16 +9,21 @@ from pathlib import Path
 from contextlib import contextmanager
 from typing import Generator
 
-from dotenv import load_dotenv
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import sessionmaker, Session as DBSession
 from sqlalchemy.pool import StaticPool
 
 from .models import Base
 
-# Load .env before reading any env vars
-_project_root = Path(__file__).resolve().parent.parent
-load_dotenv(_project_root / ".env", override=True)
+# Load .env before reading any env vars (local dev only)
+try:
+    from dotenv import load_dotenv
+    _project_root = Path(__file__).resolve().parent.parent
+    _env_file = _project_root / ".env"
+    if _env_file.exists():
+        load_dotenv(_env_file, override=True)
+except ImportError:
+    pass  # Not available on Streamlit Cloud; env vars set via Secrets
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +51,6 @@ class DatabaseManager:
     def __init__(self) -> None:
         if self._initialized:
             return
-        self._initialized = True
 
         os.makedirs(_DB_DIR, exist_ok=True)
 
@@ -77,6 +81,8 @@ class DatabaseManager:
 
         self._create_tables()
         logger.info("✅ Database initialised at %s", self._db_url)
+        # Mark initialized only after full successful setup
+        self._initialized = True
 
     def _create_engine(self, url: str):
         """Create a SQLAlchemy engine for the given URL."""
