@@ -4,11 +4,16 @@ All application settings in one centralized location
 """
 import os
 from pathlib import Path
-from dotenv import load_dotenv
 
-# Load environment variables from .env in project root
-_project_root = Path(__file__).resolve().parent.parent
-load_dotenv(_project_root / ".env", override=True)
+# Load environment variables from .env in project root (local dev only)
+try:
+    from dotenv import load_dotenv
+    _project_root = Path(__file__).resolve().parent.parent
+    _env_file = _project_root / ".env"
+    if _env_file.exists():
+        load_dotenv(_env_file, override=True)
+except ImportError:
+    pass  # python-dotenv not installed; env vars must be set externally (e.g., Streamlit Cloud secrets)
 
 # ============================================================================
 # LLM CONFIGURATION
