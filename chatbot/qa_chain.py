@@ -4,7 +4,7 @@ Integrates RAG, tools, memory, and Phase 3 quality learning
 """
 
 import pandas as pd
-from typing import Dict, Any, Optional, List, Union
+from typing import Dict, Any, Optional, List, Union, Callable
 from langchain_core.output_parsers import StrOutputParser
 from core.llm import get_chat_llm
 from core.memory import ChatMemoryManager
@@ -93,8 +93,35 @@ class EnhancedQAChain:
                 summary_parts.append(f"  {col}: {unique} unique values")
         
         return "\n".join(summary_parts)
+
+    @staticmethod
+    def _extract_stream_text(chunk: Any) -> str:
+        """Extract plain text from streamed LLM chunks."""
+        content = getattr(chunk, "content", chunk)
+
+        if isinstance(content, str):
+            return content
+
+        if isinstance(content, list):
+            texts: List[str] = []
+            for item in content:
+                if isinstance(item, str):
+                    texts.append(item)
+                elif isinstance(item, dict):
+                    text_part = item.get("text")
+                    if isinstance(text_part, str):
+                        texts.append(text_part)
+            return "".join(texts)
+
+        return ""
     
-    def ask(self, question: str, use_rag: bool = True, return_dict: bool = False) -> Union[str, Dict[str, Any]]:
+    def ask(
+        self,
+        question: str,
+        use_rag: bool = True,
+        return_dict: bool = False,
+        stream_callback: Optional[Callable[[str], None]] = None,
+    ) -> Union[str, Dict[str, Any]]:
         """
         Ask a question about the data
         
@@ -102,6 +129,7 @@ class EnhancedQAChain:
             question: User question
             use_rag: Whether to use RAG for context
             return_dict: If True, returns dict with quality info; if False, returns just the formatted response
+            stream_callback: Optional callback that receives streamed text chunks as they arrive
             
         Returns:
             If return_dict=False: Formatted response string (default for backward compatibility)
@@ -129,6 +157,7 @@ class EnhancedQAChain:
             context_result = self.context_manager.get_context_for_query(question)
             if context_result["has_context"]:
                 rag_context = context_result["formatted_context"]
+                self.last_context = rag_context
                 logger.info(f"Using RAG context from {len(context_result['sources'])} sources")
         
         # Get chat history
@@ -153,8 +182,25 @@ class EnhancedQAChain:
         
         # Create and execute chain
         try:
-            chain = prompt | self.llm | StrOutputParser()
-            raw_response = chain.invoke(prompt_vars)
+            if stream_callback:
+                prompt_value = prompt.format_prompt(**prompt_vars)
+                raw_chunks: List[str] = []
+
+                for chunk in self.llm.stream(prompt_value.to_messages()):
+                    chunk_text = self._extract_stream_text(chunk)
+                    if not chunk_text:
+                        continue
+
+                    raw_chunks.append(chunk_text)
+                    try:
+                        stream_callback(chunk_text)
+                    except Exception as callback_error:
+                        logger.warning("Stream callback failed: %s", callback_error)
+
+                raw_response = "".join(raw_chunks)
+            else:
+                chain = prompt | self.llm | StrOutputParser()
+                raw_response = chain.invoke(prompt_vars)
             
             # ===== PHASE 3 INTEGRATION: Process through improvement loop =====
             improvement_result = self.improvement_loop.process_response(

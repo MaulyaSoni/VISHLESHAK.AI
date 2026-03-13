@@ -75,7 +75,12 @@ class VishleshakReActAgent:
         )
         return executor
     
-    def run(self, question: str, context: Optional[Dict] = None) -> Dict[str, Any]:
+    def run(
+        self,
+        question: str,
+        context: Optional[Dict] = None,
+        callbacks: Optional[List[Any]] = None
+    ) -> Dict[str, Any]:
         logger.info(f"🤖 Agent processing: {question[:80]}...")
         start_time = datetime.now()
         self.iteration_count = 0
@@ -89,10 +94,16 @@ class VishleshakReActAgent:
                 )
                 self.agent.tools = selected_tools
                 logger.info(f"🎯 Selected {len(selected_tools)} tools")
-            result = self.agent.invoke({
+            
+            invoke_kwargs = {
                 "input": self._format_input(question),
                 "data_context": self.data_context,
-            })
+            }
+            config = {}
+            if callbacks:
+                config["callbacks"] = callbacks
+
+            result = self.agent.invoke(invoke_kwargs, config=config)
             answer = result.get("output", "")
             intermediate_steps = result.get("intermediate_steps", [])
             reasoning_trace = self._extract_reasoning(intermediate_steps)

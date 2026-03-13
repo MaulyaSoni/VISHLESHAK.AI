@@ -1735,15 +1735,23 @@ else:
                         # ══════════════════════════════════════════════════════
                         # AGENT MODE
                         # ══════════════════════════════════════════════════════
-                        prog2.progress(20, text="🤖 Agent analyzing question…")
-                        time.sleep(0.15)
-                        prog2.progress(40, text="🛠️ Selecting tools…")
-                        time.sleep(0.15)
-                        prog2.progress(60, text="🧠 Reasoning through data…")
-                        time.sleep(0.15)
-                        prog2.progress(80, text="✍️ Synthesizing answer…")
+                        prog2.empty()  # Clear the basic progress bar
                         
-                        agent_result = st.session_state.agent.run(user_input)
+                        from langchain_community.callbacks import StreamlitCallbackHandler
+                        
+                        agent_placeholder = st.empty()
+                        with agent_placeholder.container():
+                            st_callback = StreamlitCallbackHandler(
+                                st.container(),
+                                expand_new_thoughts=True,
+                                collapse_completed_thoughts=True
+                            )
+                            agent_result = st.session_state.agent.run(
+                                user_input,
+                                callbacks=[st_callback]
+                            )
+                        
+                        agent_placeholder.empty() # Clear live thoughts when done
                         
                         response = agent_result["answer"]
                         confidence = agent_result.get("confidence", 1.0)
@@ -1789,7 +1797,25 @@ else:
                         time.sleep(0.15)
                         prog2.progress(70, text="✍️ Composing answer…")
 
-                        result = st.session_state.qa_chain.ask(user_input, return_dict=True)
+                        stream_box = st.empty()
+                        streamed_parts = []
+
+                        def _on_stream(chunk: str):
+                            streamed_parts.append(chunk)
+                            stream_box.markdown(f"""
+                            <div class="chat-msg bot">
+                                <div class="msg-label"><span class="msg-icon">🔬</span> Vishleshak AI</div>
+                                {''.join(streamed_parts)}
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                        result = st.session_state.qa_chain.ask(
+                            user_input,
+                            return_dict=True,
+                            stream_callback=_on_stream,
+                        )
+
+                        stream_box.empty()
 
                         prog2.progress(90, text="📊 Evaluating quality…")
                         time.sleep(0.1)
