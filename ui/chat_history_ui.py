@@ -265,4 +265,49 @@ def _load_conversation(conv_id: int) -> None:
     st.session_state.chat_history    = history
     st.session_state.current_conv_id = conv_id
     st.session_state.qa_chain        = None   # reset so it re-builds with new context
+
+    # ── Sync into RAG memory (ChatMemoryManager) so the QA chain sees the loaded history
+    try:
+        from core.memory import ChatMemoryManager
+        import uuid
+        import json
+
+        # Ensure there is a session id for RAG memory; create one if missing
+        sid = st.session_state.get("session_id")
+        if not sid:
+            sid = str(uuid.uuid4())
+            st.session_state.session_id = sid
+
+        mem = ChatMemoryManager(sid)
+
+        # Clear any existing messages for this session to avoid duplicates
+        mem.clear_session(sid)
+
+        # Re-populate RAG memory from DB conversation messages
+        for msg in conv.messages:
+            mtype = "human" if msg.role == "user" else "ai"
+            meta = {}
+            if getattr(msg, "quality_score", None) is not None:
+                meta["quality_score"] = msg.quality_score
+            if getattr(msg, "quality_grade", None):
+                meta["quality_grade"] = msg.quality_grade
+            if getattr(msg, "confidence", None) is not None:
+                meta["confidence"] = msg.confidence
+            if getattr(msg, "tools_used", None):
+                try:
+                    meta["tools_used"] = json.loads(msg.tools_used)
+                except Exception:
+                    meta["tools_used"] = msg.tools_used
+            if getattr(msg, "reasoning_trace", None):
+                try:
+                    meta["reasoning_trace"] = json.loads(msg.reasoning_trace)
+                except Exception:
+                    meta["reasoning_trace"] = msg.reasoning_trace
+
+            mem.add_message(sid, mtype, msg.content, metadata=meta or None)
+
+    except Exception:
+        # Do not block UI if sync fails; history is still loaded into session state
+        pass
+
     st.rerun()
