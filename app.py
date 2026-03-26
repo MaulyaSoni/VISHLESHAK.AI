@@ -11,6 +11,10 @@ try:
     from dotenv import load_dotenv
     _project_root = Path(__file__).resolve().parent
     load_dotenv(_project_root / ".env", override=True)
+    
+    # Langsmith explicit observability check
+    if os.environ.get("LANGCHAIN_TRACING_V2") == "true":
+        os.environ["LANGCHAIN_PROJECT"] = os.environ.get("LANGCHAIN_PROJECT", "Vishleshak_AI")
 except Exception:
     pass  # Streamlit Cloud: secrets come from st.secrets, .env not needed
 
@@ -1805,7 +1809,7 @@ else:
                             stream_box.markdown(f"""
                             <div class="chat-msg bot">
                                 <div class="msg-label"><span class="msg-icon">🔬</span> Vishleshak AI</div>
-                                {''.join(streamed_parts)}
+                                <div class="markdown-body">{''.join(streamed_parts)}</div>
                             </div>
                             """, unsafe_allow_html=True)
 
@@ -1815,11 +1819,9 @@ else:
                             stream_callback=_on_stream,
                         )
 
-                        stream_box.empty()
-
+                        # Wait for quality evaluation while keeping stream visible
                         prog2.progress(90, text="📊 Evaluating quality…")
-                        time.sleep(0.1)
-
+                        
                         response    = result.get("formatted_response", "I apologize, but I couldn't generate a response.")
                         quality_obj = result.get("quality_score")
                         msg_id      = result.get("cycle_number", len(st.session_state.chat_history))
@@ -1835,6 +1837,7 @@ else:
                         prog2.progress(100, text=f"✅ Done — Grade {grade} ({score:.0f}/100)")
                         time.sleep(0.3)
                         prog2.empty()
+                        stream_box.empty()
 
                         _meta_qa = {"quality_score": score, "quality_grade": grade, "message_id": msg_id}
                         st.session_state.chat_history.append((

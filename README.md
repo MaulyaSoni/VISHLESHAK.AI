@@ -1,70 +1,101 @@
-# � Vishleshak AI — v1
+# Vishleshak AI — Enterprise Data Analysis Platform
 
-> **Vishleshak** (विश्लेषक) — *The Analyser*
-> An intelligent, full-stack data analysis platform powered by LLMs, RAG, and agentic reasoning.
+**Vishleshak** (विश्लेषक) — *The Analyser*
 
----
-
-## 🌟 What is Vishleshak AI?
-
-Vishleshak AI is a production-grade AI analytics assistant that lets you upload any dataset and interact with it through natural language. It combines deep statistical analysis, rich visualisations, a RAG-powered chatbot, and a multi-agent reasoning engine — all wrapped in a sleek dark-themed UI with full user authentication.
+An intelligent, production-grade data analysis platform powered by Large Language Models (LLMs), Retrieval-Augmented Generation (RAG), and agentic reasoning. Vishleshak AI enables organizations to upload datasets and interact with them through natural language, combining statistical analysis, visualization, conversational AI, and multi-agent reasoning in a secure, user-authenticated environment.
 
 ---
 
-## ✨ Core Features
+## Table of Contents
 
-### 📊 Comprehensive Analysis Mode
-- **Instant Data Profiling** — Automatic summary statistics, data types, missing value detection, and completeness scoring
-- **Statistical Analysis** — Min, max, mean, median, std deviation, skewness, kurtosis across all numeric columns
-- **Pattern Detection** — Trend identification, seasonality signals, anomaly flagging
-- **AI-Generated Insights** — LLM-powered narrative summaries of key findings
-- **Rich Visualisations** — 20+ auto-generated charts: distributions, correlations, time-series, box plots, heatmaps, scatter matrices, and more
-- **Interactive Charts** — Plotly-powered; zoom, pan, and export any chart as PNG
-
-### 💬 RAG Chatbot Mode
-- **Natural Language Q&A** — Ask anything about your uploaded dataset in plain English
-- **Retrieval-Augmented Generation (RAG)** — Answers grounded in your actual data, not hallucinated
-- **Advanced Vector Store** — Semantic search over document chunks for precise retrieval
-- **Conversation Memory** — Persistent multi-turn context for follow-up questions
-- **Predefined Quick Questions** — One-click starter prompts for common analyses
-- **Session History** — All conversations saved, grouped by date, searchable
-
-### 🤖 Agentic ReAct Engine
-- **Multi-Step Reasoning** — ReAct (Reason + Act) agent for complex, multi-hop questions
-- **Tool Selection** — Automatic tool routing: statistical tools, chart generator, knowledge base
-- **Reflection Layer** — Self-critique and response improvement loop
-- **Agent Reasoning Trace** — Expandable step-by-step thought process (admin/debug view)
-
-### 🔐 Authentication & User Management
-- **Secure Registration & Login** — Bcrypt-hashed passwords with session token management
-- **Per-User Data Isolation** — Each user's conversations and uploads are private
-- **Profile Management** — Update full name from the settings panel
-- **Password Change** — Self-service with current-password verification
-- **Account Deletion** — Permanent removal with password confirmation
-
-### 📁 Data Handling
-- **Multi-Format Upload** — CSV, XLSX, XLS support
-- **Live Dataset Preview** — Head/tail view, column info, data types
-- **In-Session Replacement** — Swap datasets mid-session without re-login
-- **Vector Index Auto-Build** — Embeddings generated automatically on upload
-- **Embeddings Cache** — Avoid re-embedding unchanged documents
-
-### 🕓 Chat History & Sessions
-- **Persistent Conversations** — All chats stored in SQLite via SQLAlchemy ORM
-- **Date Grouping** — History organised as Today / Yesterday / Last 7 Days / Older
-- **Search** — Full-text search across conversation titles
-- **New Chat** — Start a fresh session while keeping history intact
-- **Delete / Archive** — Manage old conversations from the sidebar
-
-### ⚙️ User Settings Panel
-- **Profile Tab** — View username, email, member-since date; edit full name
-- **Security Tab** — Change password; delete account
-- **Preferences Tab** — Toggle agent thinking process visibility
-- **My Data Tab** — Export all conversations as JSON
+- [Overview](#overview)
+- [Features](#features)
+- [System Architecture](#system-architecture)
+- [Technology Stack](#technology-stack)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Usage Guide](#usage-guide)
+- [Security and Privacy](#security-and-privacy)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [License](#license)
 
 ---
 
-## 🏗️ Architecture
+## Overview
+
+Vishleshak AI is a comprehensive data analytics assistant designed for enterprises and data teams. It provides three primary interaction modes:
+
+1. **Comprehensive Analysis Mode** — Automated statistical profiling and visualization
+2. **RAG Chatbot Mode** — Natural language queries grounded in uploaded data
+3. **Agentic ReAct Engine** — Multi-step reasoning for complex analytical questions
+
+The platform includes enterprise-grade features such as role-based authentication, per-user data isolation, persistent conversation history, and vector search capabilities.
+
+---
+
+## Features
+
+### Analysis and Insights
+
+- **Automated Data Profiling** — Summary statistics, data types, missing value detection, completeness scoring
+- **Statistical Analysis** — Descriptive statistics (mean, median, std deviation, skewness, kurtosis) for numeric columns
+- **Pattern Detection** — Trend identification, seasonality detection, anomaly flagging
+- **AI-Powered Insights** — LLM-generated narrative summaries of key analytical findings
+- **Rich Visualizations** — Auto-generated charts and plots (distributions, correlations, time-series, box plots, heatmaps, scatter matrices)
+- **Interactive Dashboards** — Plotly-based interactive charts with zoom, pan, and export capabilities
+
+### Conversational Intelligence
+
+- **Natural Language Interface** — Ask analytical questions about datasets in plain English
+- **Retrieval-Augmented Generation** — Answers grounded in actual data, minimizing hallucination
+- **Semantic Vector Search** — Advanced retrieval over document embeddings
+- **Conversation Memory** — Multi-turn chat with persistent context
+- **Quick-Start Prompts** — Pre-defined analytical templates for rapid querying
+- **Chat History** — Persistent, searchable conversation logs organized by date
+
+### Agentic Reasoning
+
+- **Multi-Step Reasoning** — ReAct (Reason + Act) agent framework for complex analytical questions
+- **Intelligent Tool Selection** — Automatic routing to statistical tools, visualization engines, and knowledge bases
+- **Self-Reflection** — Built-in response improvement and critique loop
+- **Transparent Reasoning Trace** — Step-by-step thought process visibility (admin/debug mode)
+
+### User Management and Security
+
+- **Secure Authentication** — Registration and login with bcrypt password hashing
+- **Session Management** — Token-based session management with automatic expiration
+- **Per-User Isolation** — Complete data and conversation separation between users
+- **Profile Management** — User-editable profile information
+- **Password Security** — Self-service password change with verification
+- **Account Management** — User account deletion with confirmation
+
+### Data Management
+
+- **Multi-Format Support** — CSV, XLSX, XLS file uploads
+- **Data Preview** — Head/tail view with column information and type detection
+- **In-Session Dataset Switching** — Replace datasets without re-authentication
+- **Vector Indexing** — Automatic embedding generation for semantic search
+- **Embedding Cache** — Optimized re-computation of embeddings for unchanged data
+
+### Session and History Management
+
+- **Persistent Chat History** — SQLite-backed conversation storage
+- **Temporal Organization** — Conversations grouped by date (Today, Yesterday, Last 7 Days, Older)
+- **Full-Text Search** — Search conversations by content
+- **Session Management** — Create new chats while retaining historical sessions
+- **Data Export** — Export conversation history as JSON
+
+### User Settings
+
+- **Profile Tab** — Username, email, registration date, name editing
+- **Security Tab** — Password management, account deletion
+- **Preferences Tab** — Feature visibility and reasoning process toggles
+- **Data Management Tab** — Conversation export and data retrieval
+
+---
+
+## System Architecture
 
 ```
 vishleshak-ai/
@@ -161,366 +192,504 @@ vishleshak-ai/
     ├── uploads/                  # User-uploaded datasets
     ├── memory/                   # Conversation JSON store
     └── vector_store/             # Persisted FAISS indexes
+## System Architecture
+
+### Directory Structure
+
 ```
+vishleshak-ai/
+├── app.py                          # Main Streamlit application entry point
+├── requirements.txt                # Python dependency specifications
+├── .env                            # Environment configuration (local)
+│
+├── agentic_core/                   # ReAct Agent Framework
+│   ├── react_agent.py              # Multi-step reasoning loop implementation
+│   ├── reflection_layer.py         # Self-critique and response improvement
+│   ├── tool_selector.py            # Intelligent tool routing and selection
+│   ├── agent_memory.py             # Agent working memory management
+│   └── prompts/
+│       ├── react_prompt.py         # ReAct reasoning prompts
+│       ├── reflection_prompt.py    # Self-improvement prompts
+│       └── system_prompt.py        # System-level instructions
+│
+├── analyzers/                      # Statistical Analysis Pipeline
+│   ├── statistical_analyzer.py     # Descriptive statistics engine
+│   ├── pattern_detector.py         # Trend and anomaly detection
+│   └── insight_generator.py        # LLM-powered narrative generation
+│
+├── auth/                           # Authentication and Authorization
+│   ├── auth_manager.py             # Login, registration, token logic
+│   ├── password_utils.py           # Bcrypt hashing utilities
+│   └── session_manager.py          # Session token lifecycle management
+│
+├── chatbot/                        # Conversational AI Pipeline
+│   ├── qa_chain.py                 # LangChain QA chain orchestration
+│   ├── context_manager.py          # Conversation context window management
+│   ├── cot_reasoner.py             # Chain-of-thought reasoning
+│   ├── question_decomposer.py      # Multi-part question decomposition
+│   ├── response_formatter.py       # Output formatting and refinement
+│   ├── sequential_chain.py         # Multi-step chain orchestration
+│   ├── quality_scorer.py           # Response quality assessment
+│   ├── feedback_collector.py       # User feedback capture
+│   ├── improvement_loop.py         # Iterative quality refinement
+│   ├── preference_learner.py       # User preference adaptation
+│   └── prompt_templates.py         # Prompt library and management
+│
+├── config/                         # Centralized Configuration
+│   ├── settings.py                 # Global application settings
+│   ├── agent_config.py             # Agent parameter configuration
+│   ├── chain_config.py             # LangChain configuration
+│   ├── memory_config.py            # Memory system configuration
+│   ├── rag_config.py               # RAG pipeline configuration
+│   └── tool_config.py              # Tool registry configuration
+│
+├── core/                           # Core AI Infrastructure
+│   ├── llm.py                      # LLM client (Groq API wrapper)
+│   ├── embeddings.py               # Embedding model wrapper
+│   ├── memory.py                   # Base memory management
+│   ├── enhanced_memory.py          # Long-term and semantic memory
+│   ├── memory_consolidation.py     # Memory compression utilities
+│   ├── memory_database.py          # Memory persistence layer
+│   └── importance_scorer.py        # Memory importance ranking
+│
+├── database/                       # Relational Database Layer
+│   ├── models.py                   # SQLAlchemy ORM models
+│   ├── db_manager.py               # Database session and connection pool
+│   ├── migrations.py               # Schema migration utilities
+│   ├── user_repository.py          # User CRUD operations
+│   └── chat_repository.py          # Conversation CRUD operations
+│
+├── rag/                            # RAG (Retrieval-Augmented Generation)
+│   ├── document_loader.py          # CSV/Excel document loading
+│   ├── vector_store.py             # FAISS/Chroma vector store wrapper
+│   ├── retriever.py                # Semantic retrieval implementation
+│   ├── embeddings_cache.py         # Embedding cache layer
+│   ├── knowledge_base.py           # Static knowledge base management
+│   └── advanced/                   # Advanced RAG strategies
+│
+├── tools/                          # Agent Tool Registry
+│   ├── tool_registry.py            # Tool registration and lookup
+│   ├── custom_tools/               # Domain-specific tools
+│   ├── langchain_tools/            # LangChain tool wrappers
+│   └── specialized/                # Specialized tools (charts, stats, search)
+│
+├── ui/                             # Streamlit UI Components
+│   ├── auth_ui.py                  # Login and registration interface
+│   ├── chat_history_ui.py          # Sidebar conversation history
+│   ├── user_settings_ui.py         # Settings panel UI (4 tabs)
+│   ├── loader_animations.py        # Loading animation components
+│   └── claude_loaders.py           # Custom loader implementations
+│
+├── utils/                          # Shared Utilities
+│   ├── data_loader.py              # File parsing and validation
+│   ├── dashboard_visualizer.py     # Chart generation (Plotly)
+│   └── helpers.py                  # General utility functions
+│
+├── styles/                         # UI Styling
+│   └── claude_theme.py             # Dark theme token system
+│
+├── knowledge_base/                 # Static RAG Documents
+│   ├── finance/
+│   ├── education/
+│   └── general/
+│
+├── data/                           # Data Storage
+│   ├── uploads/                    # User-uploaded datasets
+│   ├── memory/                     # Conversation JSON store
+│   └── vector_store/               # Persisted vector indexes
+│
+└── database/                       # SQLite Database
+    └── vishleshak.db               # Application database
+```
+
+### Data Flow
+
+1. **User Upload** → Data Loader → Vector Indexing → Vector Store
+2. **User Query** → RAG Retriever → LLM Chain → Response Formatter
+3. **Complex Query** → ReAct Agent → Tool Selection → Reflection Layer
+4. **Conversation** → Context Manager → Memory → SQLite
 
 ---
 
-## 🚀 Getting Started
+## Technology Stack
+
+| Component | Technology | Version |
+|-----------|-----------|---------|
+| **Frontend** | Streamlit | ≥1.42.0 |
+| **Runtime** | Python | 3.9+ |
+| **LLM Provider** | Groq API | Latest |
+| **LLM Models** | Llama 3.1, Mixtral 8x7B | Latest |
+| **Embeddings** | Sentence Transformers | ≥2.5.1 |
+| **Orchestration** | LangChain | 0.1.16 |
+| **Agent Framework** | LangGraph | ≥0.0.20 |
+| **Vector Database** | Chroma DB | ≥0.5.0 |
+| **Relational Database** | SQLite | 3.x |
+| **ORM** | SQLAlchemy | (via LangChain) |
+| **Data Processing** | Pandas, NumPy | ≥2.2.0, ≥1.24.0 |
+| **Statistics** | SciPy, Scikit-learn, Statsmodels | ≥1.11.0, ≥1.4.0 |
+| **Time Series** | Prophet | ≥1.1.5 |
+| **Visualization** | Plotly, Matplotlib, Seaborn | 5.20.0, 3.8.3, 0.13.2 |
+| **File Handling** | OpenPyXL, xlrd | ≥3.1.2, ≥2.0.1 |
+| **Security** | Bcrypt | (via werkzeug) |
+| **Document Processing** | PyPDF, python-docx, Markdown | 4.0.1, 1.1.0, 3.5.2 |
+
+---
+
+## Installation
 
 ### Prerequisites
-- Python 3.9+
-- Groq API key — free from [console.groq.com](https://console.groq.com)
 
-### Installation
+- Python 3.9 or higher
+- Git
+- Groq API key (free tier available at [console.groq.com](https://console.groq.com))
+- Minimum 2GB RAM
+- 500MB free disk space
+
+### Step-by-Step Setup
+
+#### 1. Clone the Repository
 
 ```bash
-# 1. Clone the repository
-git clone <repo-url>
+git clone <repository-url>
 cd vishleshak-ai
+```
 
-# 2. Create a virtual environment
+#### 2. Create Python Virtual Environment
+
+```bash
+# Windows
 python -m venv venv
-venv\Scripts\activate        # Windows
-# source venv/bin/activate   # macOS / Linux
+venv\Scripts\activate
 
-# 3. Install dependencies
+# macOS / Linux
+python3 -m venv venv
+source venv/bin/activate
+```
+
+#### 3. Install Dependencies
+
+```bash
 pip install -r requirements.txt
+```
 
-# 4. Configure environment
+#### 4. Configure Environment
+
+```bash
+# Copy the example environment file
 cp .env.example .env
-# Open .env and set:  GROQ_API_KEY=your_key_here
 
-# 5. Run the app
+# Edit .env with your configuration (see Configuration section below)
+```
+
+#### 5. Initialize Database
+
+```bash
+python -c "from database.db_manager import init_db; init_db()"
+```
+
+#### 6. Launch Application
+
+```bash
 streamlit run app.py
 ```
 
-Open your browser at `http://localhost:8501`
+The application will be accessible at `http://localhost:8501`
 
 ---
 
-## 📖 Usage Guide
+## Configuration
 
-### 1. Register / Login
-- Create an account with full name, username, email, and password
-- Passwords require minimum 8 characters with mixed case, digit, and symbol
+### Environment Variables
 
-### 2. Upload a Dataset
-- Supported formats: `.csv`, `.xlsx`, `.xls`
-- Drag and drop or click to browse
-- A preview and column summary appear immediately
+Create a `.env` file in the project root with the following variables:
 
-### 3. Comprehensive Analysis
-- Select **Comprehensive Analysis** mode in the sidebar
-- Click **Run Analysis** — the AI will profile, analyse, and generate 20+ charts
-- Export any chart with the 📷 icon
+```env
+# LLM Provider
+GROQ_API_KEY=your_groq_api_key_here
 
-### 4. RAG Chatbot
-- Select **RAG Chatbot** mode in the sidebar
-- Ask questions like *"What are the top 5 cities by revenue?"* or *"Are there outliers in the pricing column?"*
-- Use quick-start suggestion buttons for common queries
-- Past conversations appear in the sidebar grouped by date
+# LangSmith Observability (Optional)
+LANGCHAIN_TRACING_V2=false
+LANGCHAIN_PROJECT=Vishleshak_AI
 
-### 5. Settings
-- Click **⚙️ Settings** in the sidebar
-- Manage your profile, change password, adjust preferences, or export your data
+# Database
+DATABASE_URL=sqlite:///./vishleshak.db
 
----
+# Session Configuration
+SESSION_TIMEOUT_MINUTES=60
+MAX_UPLOAD_SIZE_MB=100
 
-## 🛠️ Tech Stack
+# RAG Configuration
+CHUNK_SIZE=1000
+CHUNK_OVERLAP=100
+RETRIEVAL_K=5
 
-| Layer | Technology |
-|---|---|
-| Frontend | Streamlit |
-| LLM | Groq API (Llama 3.1 / Mixtral) |
-| Embeddings | HuggingFace Sentence Transformers |
-| Orchestration | LangChain |
-| Vector Store | FAISS / Chroma |
-| Database | SQLite + SQLAlchemy ORM |
-| Data Processing | Pandas, NumPy |
-| Visualisation | Plotly, Matplotlib, Seaborn |
-| Authentication | Bcrypt + custom session tokens |
-| UI Styling | Custom CSS — Space Grotesk + Inter fonts |
-
----
-
-## 🔐 Privacy & Security
-
-- All data is processed locally on your machine
-- Uploaded files and conversations never leave your server
-- Only LLM inference text is sent to the Groq API — raw files are never transmitted
-- Passwords are stored as bcrypt hashes, never plaintext
-- Session tokens are scoped per-user and per-session
-
----
-
-## 🐛 Troubleshooting
-
-| Problem | Solution |
-|---|---|
-| `GROQ_API_KEY not found` | Create `.env` with `GROQ_API_KEY=your_key` |
-| `ModuleNotFoundError` | Run `pip install -r requirements.txt` |
-| Sidebar toggle missing | The `>` arrow appears top-left when the sidebar is collapsed |
-| Chat history not loading | Ensure `data/memory/` directory exists and is writable |
-| Vector store error on upload | Delete `data/vector_store/` folder and re-upload the file |
-| Slow first response | First query builds the vector index — subsequent queries are faster |
-
----
-
-## 🛣️ Roadmap — Beyond v1
-
-- [ ] PDF and Word document upload support
-- [ ] Scheduled automated analysis reports with email delivery
-- [ ] Multi-dataset comparison mode
-- [ ] Admin dashboard with platform-wide analytics
-- [ ] REST API for programmatic access
-- [ ] Real-time database / API data connectors
-- [ ] Collaborative workspaces for teams
-
----
-
-## 📝 License
-
-This project is proprietary. All rights reserved.
-
----
-
-## 🙏 Acknowledgements
-
-- Built with [Streamlit](https://streamlit.io/)
-- Powered by [Groq](https://groq.com/)
-- Orchestrated with [LangChain](https://langchain.com/)
-- Vector search via [FAISS](https://github.com/facebookresearch/faiss)
-- Charts by [Plotly](https://plotly.com/)
-
----
-
-<div align="center">
-
-**🔬 Vishleshak AI — v1**
-*The Analyser of Your Data*
-
-</div>
-
-├── app.py                      # Main Streamlit application
-├── config/
-│   └── settings.py            # Centralized configuration
-├── src/
-│   ├── core/
-│   │   └── data_processor.py  # CSV/Excel processing & RAG
-│   ├── agents/
-│   │   ├── analysis_agent.py  # Financial analysis AI agent
-│   │   └── chatbot_agent.py   # Conversational Q&A agent
-│   ├── memory/
-│   │   └── conversation.py    # Chat history management
-│   └── utils/
-│       └── helpers.py         # Utility functions
-├── data/
-│   ├── uploads/               # Uploaded files
-│   ├── memory/                # Conversation history
-│   └── vector_store/          # RAG document store
-├── requirements.txt           # Python dependencies
-└── .env.example              # Environment variables template
+# Model Configuration
+EMBEDDING_MODEL=all-MiniLM-L6-v2
+TEMPERATURE=0.7
+MAX_TOKENS=2048
 ```
 
-### Key Components
+### Key Configuration Files
 
-1. **Data Processor** (`src/core/data_processor.py`)
-   - Loads and validates CSV/Excel files
-   - Generates metadata and statistics
-   - Creates queryable document store for RAG
-
-2. **Analysis Agent** (`src/agents/analysis_agent.py`)
-   - Performs comprehensive financial analysis
-   - Uses LangChain with Groq LLM
-   - Returns structured insights and recommendations
-
-3. **Chatbot Agent** (`src/agents/chatbot_agent.py`)
-   - Handles conversational Q&A
-   - Maintains conversation context
-   - Integrates with RAG for accurate responses
-
-4. **Conversation Memory** (`src/memory/conversation.py`)
-   - Stores chat history persistently
-   - Implements sliding window for context
-   - Manages multiple conversation sessions
-
-## 🚀 Getting Started
-
-### Prerequisites
-- Python 3.8 or higher
-- Groq API key (free from [console.groq.com](https://console.groq.com))
-
-### Installation
-
-1. **Clone or download this repository**
-
-2. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Set up environment variables**
-   ```bash
-   # Copy the example env file
-   cp .env.example .env
-   
-   # Edit .env and add your Groq API key
-   # GROQ_API_KEY=your_actual_api_key_here
-   ```
-
-4. **Run the application**
-   ```bash
-   streamlit run app.py
-   ```
-
-5. **Open your browser** to `http://localhost:8501`
-
-## 📖 How to Use
-
-### Analysis Mode
-
-1. **Upload Your Data**
-   - Click "Browse files" and select a CSV or Excel file
-   - Supported formats: `.csv`, `.xlsx`, `.xls`
-   - Maximum file size: 10MB
-
-2. **Review Data Overview**
-   - See key metrics: rows, columns, data completeness
-   - View sample data and column information
-
-3. **Run Analysis**
-   - Click "🚀 Analyze Data"
-   - Wait for AI to process your data
-   - Review health score, risk level, insights, and recommendations
-
-### Chatbot Q&A Mode
-
-1. **Upload Your Data** (same as Analysis Mode)
-
-2. **Start Chatting**
-   - Type your question in the chat input
-   - Examples:
-     - "What is the total revenue?"
-     - "Show me the top 5 expenses"
-     - "What trends do you see in my spending?"
-     - "How can I improve my financial health?"
-
-3. **Continue the Conversation**
-   - Ask follow-up questions
-   - The chatbot remembers context
-   - Clear conversation anytime with "🗑️ Clear Conversation"
-
-## 💡 Example Use Cases
-
-### Personal Finance
-- Track monthly expenses and income
-- Identify spending patterns
-- Get budget recommendations
-- Monitor financial health over time
-
-### Business Finance
-- Analyze revenue trends
-- Track expenses by category
-- Assess financial risk
-- Generate insights for decision-making
-
-### Investment Tracking
-- Monitor portfolio performance
-- Analyze returns and risks
-- Identify trends in investments
-- Get recommendations for rebalancing
-
-## 🔧 Configuration
-
-Edit `config/settings.py` to customize:
-
-- **Memory Settings**: Adjust conversation window size
-- **RAG Settings**: Configure chunk size and retrieval parameters
-- **Analysis Settings**: Set confidence thresholds
-- **File Upload**: Change maximum file size
-
-## 🎯 Key Improvements Over Original
-
-### Architecture
-- ✅ **Clean separation of concerns**: Agents, Core, Memory, Utils
-- ✅ **Single responsibility principle**: Each module has one clear purpose
-- ✅ **No circular dependencies**: Clear import hierarchy
-- ✅ **Type hints**: Better code documentation and IDE support
-
-### Functionality
-- ✅ **Conversational Chatbot**: Full Q&A capability with memory
-- ✅ **RAG Integration**: Document store for accurate data retrieval
-- ✅ **Persistent Memory**: Chat history saved across sessions
-- ✅ **Multi-turn conversations**: Context-aware responses
-- ✅ **Two distinct modes**: Analysis vs Chatbot
-
-### Code Quality
-- ✅ **No duplicate logic**: DRY principle followed
-- ✅ **Optimized prompts**: Better, more focused prompts
-- ✅ **Error handling**: Robust exception handling
-- ✅ **Configuration management**: Centralized settings
-- ✅ **Removed unnecessary complexity**: No unused chains or modules
-
-## 📊 Technical Stack
-
-- **Frontend**: Streamlit
-- **LLM**: Groq (Llama 3.1 8B Instant) - Free API
-- **Framework**: LangChain
-- **Data Processing**: Pandas, NumPy
-- **Memory**: File-based JSON storage
-
-## 🔐 Privacy & Security
-
-- All data is processed locally
-- No data is sent to external services except Groq for LLM inference
-- Chat history is stored locally in `data/memory/`
-- Uploaded files are stored locally in `data/uploads/`
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-**Issue**: "GROQ_API_KEY not found"
-- **Solution**: Make sure you created `.env` file with your API key
-
-**Issue**: "Module not found"
-- **Solution**: Run `pip install -r requirements.txt`
-
-**Issue**: "File too large"
-- **Solution**: Reduce file size or increase `MAX_FILE_SIZE_MB` in `config/settings.py`
-
-**Issue**: Chatbot doesn't remember context
-- **Solution**: Check that `data/memory/` directory exists and is writable
-
-## 🛣️ Roadmap
-
-Future enhancements planned:
-- [ ] Advanced visualizations (charts and graphs)
-- [ ] Export analysis reports to PDF
-- [ ] Support for more file formats and heavy size files 
-- [ ] Multi-user support with authentication
-- [ ] Advanced RAG with vector embeddings
-- [ ] Scheduled analysis and alerts
-- [ ] Integration with financial APIs
-
-## 📝 License
-
-This project is open source and available under the MIT License.
-
-## 🙏 Acknowledgments
-
-- Built with [Streamlit](https://streamlit.io/)
-- Powered by [Groq](https://groq.com/)
-- Uses [LangChain](https://langchain.com/)
-
-## 📧 Support
-
-For questions or issues:
-- Create an issue on GitHub
-- Check existing issues for solutions
-- Review the documentation
+- **config/settings.py** — Application-wide settings
+- **config/agent_config.py** — Agent behavior parameters
+- **config/rag_config.py** — RAG pipeline tuning
+- **config/memory_config.py** — Memory system parameters
 
 ---
+
+## Usage Guide
+
+### 1. User Registration and Authentication
+
+1. Navigate to the application
+2. Click "Register" to create a new account
+3. Provide:
+   - Full Name
+   - Username (unique)
+   - Email Address
+   - Password (minimum 8 characters, mixed case, digit, and special character)
+4. Click "Sign Up"
+5. Login with your username and password
+
+**Password Requirements:**
+- Minimum 8 characters
+- At least one uppercase letter
+- At least one lowercase letter
+- At least one digit
+- At least one special character (!@#$%^&*)
+
+### 2. Dataset Upload
+
+1. In the sidebar, click "Upload Dataset"
+2. Select a file (.csv, .xlsx, or .xls)
+3. Review the preview:
+   - First and last rows
+   - Column names and data types
+   - Missing value count
+4. Click "Confirm Upload"
+5. The system automatically generates embeddings and builds the vector index
+
+### 3. Comprehensive Analysis Mode
+
+1. From the sidebar, select "Comprehensive Analysis"
+2. Click "Run Analysis"
+3. The system will:
+   - Generate descriptive statistics
+   - Detect patterns and anomalies
+   - Generate relevant visualizations (20+ charts)
+   - Produce AI-powered narrative insights
+4. Export visualizations using the export icon on each chart
+5. Download analysis report as JSON or CSV
+
+### 4. RAG Chatbot Mode
+
+1. From the sidebar, select "RAG Chatbot"
+2. Ask analytical questions about your dataset in natural language:
+   - "What are the top 5 cities by total sales?"
+   - "Are there significant outliers in the revenue column?"
+   - "What is the correlation between price and quantity?"
+3. The system will:
+   - Retrieve relevant data
+   - Generate contextual responses
+   - Maintain conversation history
+4. Use quick-start prompts for common queries
+5. View past conversations in the sidebar (grouped by date)
+
+### 5. Agentic Reasoning (Advanced)
+
+1. From the sidebar, select "Agentic ReAct"
+2. Ask complex, multi-step questions:
+   - "Analyze the sales trend and predict the next quarter"
+   - "Compare revenue patterns across regions and identify top performers"
+3. The agent will:
+   - Break down the question into sub-tasks
+   - Select appropriate tools
+   - Execute analysis steps
+   - Reflect on and refine responses
+4. View the reasoning trace in debug mode
+
+### 6. User Settings
+
+Access settings by clicking the ⚙️ icon in the sidebar:
+
+- **Profile Tab** — Edit user information
+- **Security Tab** — Change password, delete account
+- **Preferences Tab** — Configure feature visibility and behavior
+- **Data Tab** — Export conversation history as JSON
+
+### 7. Chat History
+
+- Conversations are automatically saved
+- Access via the sidebar, organized by date
+- Search conversations by keyword
+- Delete or archive conversations as needed
+- Restore starred conversations
+
+---
+
+## Security and Privacy
+
+### Data Protection
+
+- All user data is processed locally within the application
+- Uploaded datasets are stored only on your server
+- Raw file data is never transmitted to external services
+- Only processed summarization text is sent to the Groq LLM API
+
+### Authentication Security
+
+- Passwords are hashed using bcrypt (workfactor: 12)
+- Session tokens are cryptographically generated
+- Automatic session expiration after configured timeout
+- CSRF protection on all state-changing operations
+
+### Access Control
+
+- Per-user data isolation at the database level
+- Users can only access their own datasets and conversations
+- Admin debug features restricted to development mode
+
+### Compliance Considerations
+
+- GDPR-compatible data deletion (permanent removal from SQLite)
+- User data export available on demand
+- No third-party data sharing
+- Minimal telemetry (LangSmith observability is optional)
+
+---
+
+## Troubleshooting
+
+### Common Issues and Solutions
+
+#### Application won't start
+
+```bash
+# Verify Python version
+python --version  # Should be 3.9+
+
+# Reinstall dependencies
+pip install -r requirements.txt --upgrade
+
+# Clear cache
+rm -rf __pycache__ .streamlit/
+```
+
+#### Groq API authentication error
+
+```
+Error: "Could not authenticate with Groq API"
+```
+
+**Solution:**
+1. Verify `GROQ_API_KEY` in `.env` is correct
+2. Check API key has not expired at console.groq.com
+3. Ensure firewall allows outbound connections to api.groq.com
+
+#### Vector store initialization fails
+
+```bash
+# Reset embeddings cache
+rm -rf data/vector_store/*
+
+# Reinitialize
+python -c "from rag.knowledge_base import initialize_kb; initialize_kb()"
+```
+
+#### Database locked error
+
+```
+sqlite3.OperationalError: database is locked
+```
+
+**Solution:**
+1. Ensure only one Streamlit instance is running
+2. Kill previous processes: `pkill -f streamlit`
+3. Delete database lock: `rm -f vishleshak.db-wal`
+
+#### Memory issues with large datasets
+
+**Solution:**
+1. Increase chunk size in `config/rag_config.py`
+2. Reduce `RETRIEVAL_K` value
+3. Use `CHUNK_OVERLAP` wisely (default: 100)
+4. Consider dataset splitting for very large files (>500MB)
+
+#### Slow query responses
+
+**Optimization steps:**
+1. Check CHUNK_SIZE configuration (1000 recommended)
+2. Verify vector store is built: `data/vector_store/` should exist
+3. Monitor system RAM using `top` (Linux) or Task Manager (Windows)
+4. Consider reducing dataset size
+
+### Debug Mode
+
+Enable debug mode in `.env`:
+
+```env
+DEBUG=true
+LANGCHAIN_TRACING_V2=true
+```
+
+View detailed logs:
+
+```bash
+streamlit run app.py --logger.level=debug
+```
+
+---
+
+## Contributing
+
+### Development Setup
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/your-feature-name`
+3. Set up development environment with test dependencies
+4. Make changes following existing code style
+5. Test thoroughly before submitting PR
+6. Submit pull request with clear description
+
+### Code Standards
+
+- Follow PEP 8 ("black" code formatter)
+- Add docstrings to all functions and classes
+- Include type hints where applicable
+- Write unit tests for new features
+- Keep functions focused and modular
+
+### Pull Request Process
+
+1. Update README.md if adding features
+2. Increment version in `app.py` docstring
+3. Ensure all tests pass
+4. Request review from maintainers
+5. Address feedback before merging
+
+---
+
+## License
+
+This project is licensed under the MIT License. See LICENSE file for details.
+
+---
+
+## Support and Contact
+
+For issues, feature requests, or questions:
+
+1. Check the [Troubleshooting](#troubleshooting) section
+2. Review existing GitHub issues
+3. Create a new issue with detailed description
+4. Contact the development team
+
+---
+
+**Last Updated:** March 2026
+**Version:** 1.0.0
+**Maintainer:** Vishleshak AI Development Team
 
 **Made with ❤️ for better financial insights**
 #   V I S H L E S H A K . A I 

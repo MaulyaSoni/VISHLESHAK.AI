@@ -180,13 +180,23 @@ class EnhancedQAChain:
                 "question": question
             }
         
+        # LangSmith config for thread-wise tracing
+        langsmith_config = {
+            "configurable": {"thread_id": self.session_id},
+            "metadata": {
+                "thread_id": self.session_id,
+                "message_id": message_id
+            },
+            "run_name": "qa_chain_turn",
+        }
+        
         # Create and execute chain
         try:
             if stream_callback:
                 prompt_value = prompt.format_prompt(**prompt_vars)
                 raw_chunks: List[str] = []
 
-                for chunk in self.llm.stream(prompt_value.to_messages()):
+                for chunk in self.llm.stream(prompt_value.to_messages(), config=langsmith_config):
                     chunk_text = self._extract_stream_text(chunk)
                     if not chunk_text:
                         continue
@@ -200,7 +210,7 @@ class EnhancedQAChain:
                 raw_response = "".join(raw_chunks)
             else:
                 chain = prompt | self.llm | StrOutputParser()
-                raw_response = chain.invoke(prompt_vars)
+                raw_response = chain.invoke(prompt_vars, config=langsmith_config)
             
             # ===== PHASE 3 INTEGRATION: Process through improvement loop =====
             improvement_result = self.improvement_loop.process_response(
