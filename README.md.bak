@@ -97,6 +97,103 @@ The platform includes enterprise-grade features such as role-based authenticatio
 
 ## System Architecture
 
+```
+vishleshak-ai/
+├── app.py                        # Main Streamlit entry point
+│
+├── agentic_core/                 # ReAct agent engine
+│   ├── react_agent.py            # Multi-step reasoning loop
+│   ├── reflection_layer.py       # Self-critique & improvement
+│   ├── tool_selector.py          # Automatic tool routing
+│   ├── agent_memory.py           # Agent working memory
+│   └── prompts/                  # System, ReAct & reflection prompts
+│
+├── analyzers/                    # Analysis pipeline
+│   ├── statistical_analyzer.py   # Descriptive stats engine
+│   ├── pattern_detector.py       # Trend & anomaly detection
+│   └── insight_generator.py      # LLM narrative generation
+│
+├── auth/                         # Authentication layer
+│   ├── auth_manager.py           # Login / register / token logic
+│   ├── password_utils.py         # Bcrypt hashing utilities
+│   └── session_manager.py        # Session token lifecycle
+│
+├── chatbot/                      # Q&A chatbot pipeline
+│   ├── qa_chain.py               # Main LangChain QA chain
+│   ├── context_manager.py        # Conversation context window
+│   ├── cot_reasoner.py           # Chain-of-thought reasoning
+│   ├── question_decomposer.py    # Multi-part question splitting
+│   ├── response_formatter.py     # Output formatting
+│   ├── sequential_chain.py       # Multi-step chain orchestration
+│   ├── quality_scorer.py         # Internal response scoring
+│   ├── feedback_collector.py     # Thumbs up/down feedback
+│   ├── improvement_loop.py       # Quality-driven refinement
+│   ├── preference_learner.py     # User preference adaptation
+│   └── prompt_templates.py       # Prompt library
+│
+├── config/                       # Centralised configuration
+│   ├── settings.py               # Global app settings
+│   ├── agent_config.py           # Agent parameters
+│   ├── chain_config.py           # LangChain config
+│   ├── memory_config.py          # Memory settings
+│   ├── rag_config.py             # RAG parameters
+│   └── tool_config.py            # Tool registry config
+│
+├── core/                         # Core AI infrastructure
+│   ├── llm.py                    # LLM client (Groq)
+│   ├── embeddings.py             # Embedding model wrapper
+│   ├── memory.py                 # Base memory manager
+│   ├── enhanced_memory.py        # Long-term + semantic memory
+│   ├── memory_consolidation.py   # Memory compression
+│   ├── memory_database.py        # Memory persistence layer
+│   └── importance_scorer.py      # Memory importance ranking
+│
+├── database/                     # Relational database layer
+│   ├── models.py                 # SQLAlchemy ORM models
+│   ├── db_manager.py             # DB session & connection pool
+│   ├── migrations.py             # Schema migration utilities
+│   ├── user_repository.py        # User CRUD operations
+│   └── chat_repository.py        # Conversation CRUD operations
+│
+├── rag/                          # RAG pipeline
+│   ├── document_loader.py        # CSV/Excel → LangChain docs
+│   ├── vector_store.py           # FAISS / Chroma vector store
+│   ├── retriever.py              # Semantic retrieval logic
+│   ├── embeddings_cache.py       # Embedding memoisation
+│   ├── knowledge_base.py         # Static domain knowledge
+│   └── advanced/                 # Advanced RAG strategies
+│
+├── tools/                        # Agent tool registry
+│   ├── tool_registry.py          # Tool registration & lookup
+│   ├── custom_tools/             # Domain-specific tools
+│   ├── langchain_tools/          # LangChain tool wrappers
+│   └── specialized/              # Chart, stats, search tools
+│
+├── ui/                           # Streamlit UI components
+│   ├── auth_ui.py                # Login / Register page
+│   ├── chat_history_ui.py        # Sidebar conversation history
+│   ├── user_settings_ui.py       # Settings panel (4 tabs)
+│   └── claude_loaders.py         # Animated loading screens
+│
+├── utils/                        # Shared utilities
+│   ├── data_loader.py            # File parsing & validation
+│   ├── dashboard_visualizer.py   # Chart generation (Plotly)
+│   └── helpers.py                # General helper functions
+│
+├── styles/
+│   └── claude_theme.py           # Dark theme token system
+│
+├── knowledge_base/               # Static RAG documents
+│   ├── finance/
+│   ├── education/
+│   └── general/
+│
+└── data/
+    ├── uploads/                  # User-uploaded datasets
+    ├── memory/                   # Conversation JSON store
+    └── vector_store/             # Persisted FAISS indexes
+## System Architecture
+
 ### Directory Structure
 
 ```
@@ -196,10 +293,13 @@ vishleshak-ai/
 │   ├── education/
 │   └── general/
 │
-└── data/                           # Data Storage
-    ├── uploads/                    # User-uploaded datasets
-    ├── memory/                     # Conversation JSON store
-    └── vector_store/               # Persisted vector indexes
+├── data/                           # Data Storage
+│   ├── uploads/                    # User-uploaded datasets
+│   ├── memory/                     # Conversation JSON store
+│   └── vector_store/               # Persisted vector indexes
+│
+└── database/                       # SQLite Database
+    └── vishleshak.db               # Application database
 ```
 
 ### Data Flow
@@ -224,13 +324,13 @@ vishleshak-ai/
 | **Agent Framework** | LangGraph | ≥0.0.20 |
 | **Vector Database** | Chroma DB | ≥0.5.0 |
 | **Relational Database** | SQLite | 3.x |
-| **ORM** | SQLAlchemy | Via LangChain |
+| **ORM** | SQLAlchemy | (via LangChain) |
 | **Data Processing** | Pandas, NumPy | ≥2.2.0, ≥1.24.0 |
 | **Statistics** | SciPy, Scikit-learn, Statsmodels | ≥1.11.0, ≥1.4.0 |
 | **Time Series** | Prophet | ≥1.1.5 |
 | **Visualization** | Plotly, Matplotlib, Seaborn | 5.20.0, 3.8.3, 0.13.2 |
 | **File Handling** | OpenPyXL, xlrd | ≥3.1.2, ≥2.0.1 |
-| **Security** | Bcrypt | Via werkzeug |
+| **Security** | Bcrypt | (via werkzeug) |
 | **Document Processing** | PyPDF, python-docx, Markdown | 4.0.1, 1.1.0, 3.5.2 |
 
 ---
@@ -278,7 +378,7 @@ pip install -r requirements.txt
 # Copy the example environment file
 cp .env.example .env
 
-# Edit .env with your configuration
+# Edit .env with your configuration (see Configuration section below)
 ```
 
 #### 5. Initialize Database
@@ -301,7 +401,7 @@ The application will be accessible at `http://localhost:8501`
 
 ### Environment Variables
 
-Create a `.env` file in the project root:
+Create a `.env` file in the project root with the following variables:
 
 ```env
 # LLM Provider
@@ -344,59 +444,87 @@ MAX_TOKENS=2048
 
 1. Navigate to the application
 2. Click "Register" to create a new account
-3. Provide Full Name, Username, Email Address, and Password
-4. Password Requirements:
-   - Minimum 8 characters
-   - At least one uppercase letter
-   - At least one lowercase letter
-   - At least one digit
-   - At least one special character (!@#$%^&*)
+3. Provide:
+   - Full Name
+   - Username (unique)
+   - Email Address
+   - Password (minimum 8 characters, mixed case, digit, and special character)
+4. Click "Sign Up"
 5. Login with your username and password
+
+**Password Requirements:**
+- Minimum 8 characters
+- At least one uppercase letter
+- At least one lowercase letter
+- At least one digit
+- At least one special character (!@#$%^&*)
 
 ### 2. Dataset Upload
 
 1. In the sidebar, click "Upload Dataset"
 2. Select a file (.csv, .xlsx, or .xls)
-3. Review the preview (first/last rows, columns, data types, missing values)
+3. Review the preview:
+   - First and last rows
+   - Column names and data types
+   - Missing value count
 4. Click "Confirm Upload"
-5. System automatically generates embeddings and builds vector index
+5. The system automatically generates embeddings and builds the vector index
 
 ### 3. Comprehensive Analysis Mode
 
-1. From sidebar, select "Comprehensive Analysis"
+1. From the sidebar, select "Comprehensive Analysis"
 2. Click "Run Analysis"
-3. System will generate descriptive statistics, detect patterns, visualizations, and narrative insights
-4. Export visualizations using export icon on each chart
+3. The system will:
+   - Generate descriptive statistics
+   - Detect patterns and anomalies
+   - Generate relevant visualizations (20+ charts)
+   - Produce AI-powered narrative insights
+4. Export visualizations using the export icon on each chart
+5. Download analysis report as JSON or CSV
 
 ### 4. RAG Chatbot Mode
 
-1. From sidebar, select "RAG Chatbot"
-2. Ask analytical questions in natural language
-3. System retrieves data and generates contextual responses
-4. Uses quick-start prompts for common queries
-5. All conversations are saved and searchable
+1. From the sidebar, select "RAG Chatbot"
+2. Ask analytical questions about your dataset in natural language:
+   - "What are the top 5 cities by total sales?"
+   - "Are there significant outliers in the revenue column?"
+   - "What is the correlation between price and quantity?"
+3. The system will:
+   - Retrieve relevant data
+   - Generate contextual responses
+   - Maintain conversation history
+4. Use quick-start prompts for common queries
+5. View past conversations in the sidebar (grouped by date)
 
 ### 5. Agentic Reasoning (Advanced)
 
-1. From sidebar, select "Agentic ReAct"
-2. Ask complex, multi-step analytical questions
-3. Agent breaks down questions, selects tools, and executes analysis
-4. View reasoning trace in debug mode
+1. From the sidebar, select "Agentic ReAct"
+2. Ask complex, multi-step questions:
+   - "Analyze the sales trend and predict the next quarter"
+   - "Compare revenue patterns across regions and identify top performers"
+3. The agent will:
+   - Break down the question into sub-tasks
+   - Select appropriate tools
+   - Execute analysis steps
+   - Reflect on and refine responses
+4. View the reasoning trace in debug mode
 
 ### 6. User Settings
 
-Access settings via sidebar:
+Access settings by clicking the ⚙️ icon in the sidebar:
 
-- Profile Tab — Edit user information
-- Security Tab — Change password, delete account
-- Preferences Tab — Configure feature visibility
-- Data Tab — Export conversation history as JSON
+- **Profile Tab** — Edit user information
+- **Security Tab** — Change password, delete account
+- **Preferences Tab** — Configure feature visibility and behavior
+- **Data Tab** — Export conversation history as JSON
 
 ### 7. Chat History
 
-- Conversations automatically saved
-- Access and search via sidebar (organized by date)
-- Delete or archive as needed
+- Conversations are automatically saved
+- Access via the sidebar, organized by date
+- Search conversations by keyword
+- Delete or archive conversations as needed
+- Restore starred conversations
 
 ---
 
@@ -404,82 +532,108 @@ Access settings via sidebar:
 
 ### Data Protection
 
-- All user data processed locally within application
-- Uploaded datasets stored only on your server
-- Raw file data never transmitted to external services
-- Only processed text sent to Groq LLM API
+- All user data is processed locally within the application
+- Uploaded datasets are stored only on your server
+- Raw file data is never transmitted to external services
+- Only processed summarization text is sent to the Groq LLM API
 
 ### Authentication Security
 
-- Passwords hashed using bcrypt (workfactor: 12)
-- Session tokens cryptographically generated
+- Passwords are hashed using bcrypt (workfactor: 12)
+- Session tokens are cryptographically generated
 - Automatic session expiration after configured timeout
 - CSRF protection on all state-changing operations
 
 ### Access Control
 
-- Per-user data isolation at database level
+- Per-user data isolation at the database level
 - Users can only access their own datasets and conversations
 - Admin debug features restricted to development mode
 
-### Compliance
+### Compliance Considerations
 
-- GDPR-compatible data deletion
+- GDPR-compatible data deletion (permanent removal from SQLite)
 - User data export available on demand
 - No third-party data sharing
-- Minimal telemetry (optional)
+- Minimal telemetry (LangSmith observability is optional)
 
 ---
 
 ## Troubleshooting
 
-### Application won't start
+### Common Issues and Solutions
+
+#### Application won't start
 
 ```bash
+# Verify Python version
 python --version  # Should be 3.9+
+
+# Reinstall dependencies
 pip install -r requirements.txt --upgrade
+
+# Clear cache
 rm -rf __pycache__ .streamlit/
 ```
 
-### Groq API authentication error
+#### Groq API authentication error
 
+```
+Error: "Could not authenticate with Groq API"
+```
+
+**Solution:**
 1. Verify `GROQ_API_KEY` in `.env` is correct
-2. Check API key has not expired
-3. Ensure firewall allows outbound to api.groq.com
+2. Check API key has not expired at console.groq.com
+3. Ensure firewall allows outbound connections to api.groq.com
 
-### Vector store initialization fails
+#### Vector store initialization fails
 
 ```bash
+# Reset embeddings cache
 rm -rf data/vector_store/*
+
+# Reinitialize
 python -c "from rag.knowledge_base import initialize_kb; initialize_kb()"
 ```
 
-### Database locked error
+#### Database locked error
 
+```
+sqlite3.OperationalError: database is locked
+```
+
+**Solution:**
 1. Ensure only one Streamlit instance is running
 2. Kill previous processes: `pkill -f streamlit`
 3. Delete database lock: `rm -f vishleshak.db-wal`
 
-### Memory issues with large datasets
+#### Memory issues with large datasets
 
+**Solution:**
 1. Increase chunk size in `config/rag_config.py`
 2. Reduce `RETRIEVAL_K` value
 3. Use `CHUNK_OVERLAP` wisely (default: 100)
-4. Consider dataset splitting for files >500MB
+4. Consider dataset splitting for very large files (>500MB)
 
-### Slow query responses
+#### Slow query responses
 
+**Optimization steps:**
 1. Check CHUNK_SIZE configuration (1000 recommended)
-2. Verify vector store built: `data/vector_store/` should exist
-3. Monitor system RAM
+2. Verify vector store is built: `data/vector_store/` should exist
+3. Monitor system RAM using `top` (Linux) or Task Manager (Windows)
 4. Consider reducing dataset size
 
-### Enable Debug Mode
+### Debug Mode
+
+Enable debug mode in `.env`:
 
 ```env
 DEBUG=true
 LANGCHAIN_TRACING_V2=true
 ```
+
+View detailed logs:
 
 ```bash
 streamlit run app.py --logger.level=debug
@@ -492,17 +646,19 @@ streamlit run app.py --logger.level=debug
 ### Development Setup
 
 1. Fork the repository
-2. Create feature branch: `git checkout -b feature/your-feature-name`
+2. Create a feature branch: `git checkout -b feature/your-feature-name`
 3. Set up development environment with test dependencies
-4. Make changes following code style
-5. Test thoroughly before PR submission
+4. Make changes following existing code style
+5. Test thoroughly before submitting PR
+6. Submit pull request with clear description
 
 ### Code Standards
 
-- Follow PEP 8 (black code formatter)
+- Follow PEP 8 ("black" code formatter)
 - Add docstrings to all functions and classes
 - Include type hints where applicable
 - Write unit tests for new features
+- Keep functions focused and modular
 
 ### Pull Request Process
 
@@ -510,6 +666,7 @@ streamlit run app.py --logger.level=debug
 2. Increment version in `app.py` docstring
 3. Ensure all tests pass
 4. Request review from maintainers
+5. Address feedback before merging
 
 ---
 
@@ -530,6 +687,11 @@ For issues, feature requests, or questions:
 
 ---
 
-**Last Updated:** March 2026  
-**Version:** 1.0.0  
+**Last Updated:** March 2026
+**Version:** 1.0.0
 **Maintainer:** Vishleshak AI Development Team
+
+**Made with ❤️ for better financial insights**
+#   V I S H L E S H A K . A I 
+ 
+ 
