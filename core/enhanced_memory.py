@@ -14,7 +14,7 @@ from core.memory_database import get_memory_database, MemoryDatabase
 from rag.vector_store import get_vector_store, VectorStoreManager
 from config import memory_config
 from langchain.memory import ConversationBufferWindowMemory
-from langchain.schema import HumanMessage, AIMessage
+from langchain_core.messages import HumanMessage, AIMessage
 
 logger = logging.getLogger(__name__)
 

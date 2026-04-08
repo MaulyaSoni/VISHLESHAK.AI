@@ -80,8 +80,17 @@ except Exception as _auth_err:
     logger.warning(f"Auth system not available: {_auth_err}")
 
 # ── agentic imports ────────────────────────────────────────────────────────────
+AGENTIC_AVAILABLE = False
+SUPERVISOR_AVAILABLE = False
+
 try:
     from agentic_core import create_vishleshak_agent
+    AGENTIC_AVAILABLE = True
+except Exception as e:
+    logger.warning(f"⚠️ Agentic features not available: {e}")
+
+try:
+    from agentic_core.supervisor_graph import invoke_supervisor, get_supervisor_graph
     from tools.specialized import (
         StatisticalAnalyzerTool,
         CorrelationFinderTool,
@@ -92,10 +101,13 @@ try:
         PythonSandboxTool,
         ReportGeneratorTool,
     )
-    AGENTIC_AVAILABLE = True
-except ImportError as e:
-    logger.warning(f"⚠️ Agentic features not available: {e}")
-    AGENTIC_AVAILABLE = False
+    SUPERVISOR_AVAILABLE = True
+except Exception as e:
+    logger.warning(f"⚠️ Supervisor graph not available: {e}")
+    SUPERVISOR_AVAILABLE = False
+
+# Use supervisor if available, otherwise fall back to AGENTIC
+AGENTIC_AVAILABLE = AGENTIC_AVAILABLE or SUPERVISOR_AVAILABLE
 
 # ─────────────────────────────────────────────────────────────────────────────
 # PAGE CONFIG  (must be first Streamlit call)
@@ -1068,25 +1080,30 @@ with st.sidebar:
     )
     st.session_state.mode = "Analysis" if "Analysis" in mode_choice else "Q&A"
     
-    # ── Agent mode toggle (Q&A only) ─────────────────────────
-    # if st.session_state.mode == "Q&A" and AGENTIC_AVAILABLE:
-    #     st.markdown('<div class="sidebar-section">AI Mode</div>', unsafe_allow_html=True)
-    #     agent_mode = st.checkbox(
-    #         "🤖 Enable Agentic Mode",
-    #         value=st.session_state.use_agent_mode,
-    #         help="Use autonomous ReAct agent with specialized tools"
-    #     )
-    #     if agent_mode != st.session_state.use_agent_mode:
-    #         st.session_state.use_agent_mode = agent_mode
-    #         st.session_state.agent = None  # Reset agent
+    # ── Agent mode toggle (Analysis mode) ─────────────────────────
+    if st.session_state.mode == "Analysis" and SUPERVISOR_AVAILABLE:
+        st.markdown('<div class="sidebar-section">AI Engine</div>', unsafe_allow_html=True)
+        agent_mode = st.checkbox(
+            "🤖 Use Multi-Agent Supervisor (v2)",
+            value=st.session_state.get("use_agent_mode", False),
+            help="Use LangGraph multi-agent system with specialized agents"
+        )
+        if agent_mode != st.session_state.get("use_agent_mode", False):
+            st.session_state.use_agent_mode = agent_mode
+            st.session_state.analysis_result = None  # Reset analysis
+            st.rerun()
         
-    #     if st.session_state.use_agent_mode:
-    #         st.session_state.show_agent_thinking = st.checkbox(
-    #             "👁️ Show Reasoning Process",
-    #             value=st.session_state.show_agent_thinking,
-    #             help="Display agent's thought → action → observation loop"
-    #         )
-
+        if st.session_state.use_agent_mode:
+            domain = st.selectbox(
+                "🎯 Domain",
+                ["general", "finance", "insurance", "ecommerce"],
+                index=0,
+                help="Select domain for specialized insights"
+            )
+            if domain != st.session_state.get("selected_domain", "general"):
+                st.session_state.selected_domain = domain
+                st.rerun()
+    
     # ── Chat History (DB-backed or in-memory fallback) ──────
     if st.session_state.mode == "Q&A":
         if AUTH_AVAILABLE and st.session_state.auth_user:
@@ -1307,14 +1324,42 @@ else:
             if st.button("🚀 Analyse Data", type="primary", width='content'):
                 prog = st.progress(0, text="🔄 Initialising analysis engine…")
                 try:
-                    prog.progress(20, text="📐 Computing statistics…")
-                    generator = InsightGenerator(df)
-                    prog.progress(55, text="🤖 Generating AI insights…")
-                    result = generator.generate_comprehensive_insights()
-                    prog.progress(90, text="✅ Finalising…")
-                    st.session_state.analysis_result = result
+                    # Check if supervisor graph should be used (v2 mode)
+                    use_supervisor = SUPERVISOR_AVAILABLE and st.session_state.get("use_agent_mode", False)
+                    
+                    prog.progress(10, text="🧠 Starting agentic supervisor…")
+                    
+                    if use_supervisor:
+                        # Use new LangGraph supervisor (v2)
+                        from config.domain_config import detect_domain_from_columns
+                        domain = detect_domain_from_columns(df.columns.tolist())
+                        
+                        result = invoke_supervisor(
+                            user_query="Comprehensive data analysis",
+                            dataset=df,
+                            user_id=st.session_state.auth_user.username if st.session_state.get("auth_user") else "default",
+                            session_id=st.session_state.session_id,
+                            domain=domain
+                        )
+                        
+                        # Store supervisor result in session
+                        st.session_state.analysis_result = {
+                            "executive_summary": result.get("insights_text", "Analysis completed"),
+                            "profile": result.get("dataset_meta", {}).get("profile", {}),
+                            "statistics": result.get("analysis_result", {}).get("statistics", {}),
+                            "supervisor_result": result
+                        }
+                        st.session_state.charts_cache = result.get("charts", [])
+                    else:
+                        # Use original InsightGenerator (v1)
+                        prog.progress(20, text="📐 Computing statistics…")
+                        generator = InsightGenerator(df)
+                        prog.progress(55, text="🤖 Generating AI insights…")
+                        result = generator.generate_comprehensive_insights()
+                        prog.progress(90, text="✅ Finalising…")
+                        st.session_state.analysis_result = result
+                    
                     st.session_state.show_visuals = False
-                    st.session_state.charts_cache = None  # Clear charts cache
                     st.session_state.generating_visuals = False
                     prog.progress(100, text="✅ Analysis complete!")
                     import time; time.sleep(0.4)
@@ -1329,12 +1374,31 @@ else:
                 if st.button("🔄 Re-Analyse", width='stretch'):
                     prog = st.progress(0, text="🔄 Re-running…")
                     try:
-                        prog.progress(30, text="📐 Computing…")
-                        generator = InsightGenerator(df)
-                        prog.progress(65, text="🤖 AI thinking…")
-                        result = generator.generate_comprehensive_insights()
-                        prog.progress(100, text="✅ Done!")
-                        st.session_state.analysis_result = result
+                        use_supervisor = SUPERVISOR_AVAILABLE and st.session_state.get("use_agent_mode", False)
+                        
+                        if use_supervisor:
+                            prog.progress(20, text="🧠 Running supervisor graph…")
+                            domain = st.session_state.get("selected_domain", "general")
+                            result = invoke_supervisor(
+                                user_query="Comprehensive data analysis",
+                                dataset=df,
+                                user_id=st.session_state.auth_user.username if st.session_state.get("auth_user") else "default",
+                                session_id=st.session_state.session_id,
+                                domain=domain
+                            )
+                            st.session_state.analysis_result = {
+                                "executive_summary": result.get("insights_text", "Analysis completed"),
+                                "profile": result.get("dataset_meta", {}).get("profile", {}),
+                                "statistics": result.get("analysis_result", {}).get("statistics", {}),
+                                "supervisor_result": result
+                            }
+                            st.session_state.charts_cache = result.get("charts", [])
+                        else:
+                            prog.progress(30, text="📐 Computing…")
+                            generator = InsightGenerator(df)
+                            prog.progress(65, text="🤖 AI thinking…")
+                            result = generator.generate_comprehensive_insights()
+                            st.session_state.analysis_result = result
                         st.session_state.show_visuals = False
                         st.session_state.charts_cache = None  # Clear charts cache
                         st.session_state.generating_visuals = False
@@ -1374,9 +1438,19 @@ else:
                 
                 # Check if we need to generate charts
                 if st.session_state.charts_cache is None or st.session_state.generating_visuals:
-                    # Show detailed progress
-                    prog_vis = st.progress(0, text="🎨 Initializing dashboard builder…")
-                    st.markdown('<div class="loading-bar"></div>', unsafe_allow_html=True)
+                    # Check if we have supervisor charts already
+                    supervisor_result = result.get("supervisor_result", {})
+                    existing_charts = supervisor_result.get("charts", []) if supervisor_result else []
+                    
+                    if existing_charts and len(existing_charts) > 0:
+                        # Use supervisor-generated charts
+                        st.session_state.charts_cache = existing_charts
+                        st.session_state.generating_visuals = False
+                        logger.info(f"Using supervisor charts: {len(existing_charts)}")
+                    else:
+                        # Generate charts using DashboardVisualizer
+                        prog_vis = st.progress(0, text="🎨 Initializing dashboard builder…")
+                        st.markdown('<div class="loading-bar"></div>', unsafe_allow_html=True)
                     
                     try:
                         import time

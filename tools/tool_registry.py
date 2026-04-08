@@ -1,6 +1,7 @@
 """
-Tool Registry for Vishleshak AI v1
+Tool Registry for Vishleshak AI v2
 Central registry for all tools (LangChain and custom)
+Now includes new agentic tools for multi-agent system
 """
 
 from typing import Dict, List, Any, Optional, Callable
@@ -90,7 +91,64 @@ class ToolRegistry:
         if not hasattr(self, 'initialized'):
             self.tools: Dict[str, BaseTool] = {}
             self.initialized = True
-            logger.info("✅ Tool registry initialized")
+            self._register_v2_tools()
+            logger.info("✅ Tool registry initialized with v2 tools")
+    
+    def _register_v2_tools(self):
+        """Register new v2 agentic tools"""
+        
+        from tools.custom_tools.file_access_tool import load_dataset
+        
+        self.register_tool(BaseTool(
+            name="load_dataset",
+            description="Load dataset from various sources (local, folder, gdrive, onedrive)",
+            category="data",
+            func=load_dataset
+        ))
+        
+        self.register_tool(BaseTool(
+            name="run_stats",
+            description="Calculate statistical metrics on data",
+            category="analysis"
+        ))
+        
+        self.register_tool(BaseTool(
+            name="clean_data",
+            description="Clean and preprocess data (handle missing, outliers)",
+            category="data"
+        ))
+        
+        self.register_tool(BaseTool(
+            name="gen_chart",
+            description="Generate Plotly charts automatically",
+            category="visualization"
+        ))
+        
+        self.register_tool(BaseTool(
+            name="search_rag",
+            description="Search knowledge base using RAG",
+            category="rag"
+        ))
+        
+        self.register_tool(BaseTool(
+            name="run_code",
+            description="Execute Python code in sandbox",
+            category="execution"
+        ))
+        
+        self.register_tool(BaseTool(
+            name="detect_anomaly",
+            description="Detect anomalies in data",
+            category="analysis"
+        ))
+        
+        self.register_tool(BaseTool(
+            name="gen_pdf",
+            description="Generate PDF report",
+            category="report"
+        ))
+        
+        logger.info(f"Registered {8} new v2 tools")
     
     def register_tool(self, tool: BaseTool) -> bool:
         """

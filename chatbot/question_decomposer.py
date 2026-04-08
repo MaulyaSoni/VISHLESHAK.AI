@@ -5,7 +5,7 @@ Breaks complex questions into manageable sub-questions
 
 from typing import List, Dict, Any, Optional
 import logging
-from langchain.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from core.llm import get_chat_llm
 from config import chain_config

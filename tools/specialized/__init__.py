@@ -6,6 +6,7 @@ from .trend_analyzer import TrendAnalyzerTool
 from .forecaster import ForecasterTool
 from .python_sandbox import PythonSandboxTool
 from .report_generator import ReportGeneratorTool
+from .pdf_subgraph import generate_pdf_report
 
 __all__ = [
     "StatisticalAnalyzerTool",
@@ -16,4 +17,5 @@ __all__ = [
     "ForecasterTool",
     "PythonSandboxTool",
     "ReportGeneratorTool",
+    "generate_pdf_report",
 ]

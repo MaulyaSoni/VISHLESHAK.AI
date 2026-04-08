@@ -132,3 +132,44 @@ class UserPreferences(Base):
 
     def __repr__(self) -> str:
         return f"<UserPreferences user_id={self.user_id}>"
+
+
+class ScheduledJob(Base):
+    __tablename__ = "scheduled_jobs"
+
+    id            = Column(Integer, primary_key=True, autoincrement=True)
+    user_id       = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    job_id        = Column(String(100), unique=True, nullable=False, index=True)
+    description   = Column(Text)
+    schedule      = Column(String(50), nullable=False)
+    pipeline      = Column(Text)   # JSON array of pipeline steps
+    source        = Column(String(50), default="last_uploaded")
+    output        = Column(Text)   # JSON array of outputs
+    domain        = Column(String(20), default="general")
+    is_active     = Column(Boolean, default=True)
+    created_at    = Column(DateTime, default=_utcnow)
+    last_run      = Column(DateTime)
+    next_run      = Column(DateTime)
+
+    __table_args__ = (Index("idx_sched_user", "user_id"),)
+
+
+class DatasetMemory(Base):
+    __tablename__ = "dataset_memories"
+
+    id             = Column(Integer, primary_key=True, autoincrement=True)
+    user_id        = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    dataset_hash   = Column(String(50), nullable=False, index=True)
+    dataset_name   = Column(String(200))
+    key_findings   = Column(Text)
+    anomalies      = Column(Text)   # JSON array
+    column_stats   = Column(Text)   # JSON
+    domain         = Column(String(20))
+    memory_tier    = Column(String(10), default="warm")  # warm or cold
+    created_at     = Column(DateTime, default=_utcnow)
+    accessed_at    = Column(DateTime)
+
+    __table_args__ = (
+        Index("idx_dataset_mem_user", "user_id"),
+        Index("idx_dataset_mem_hash", "dataset_hash"),
+    )

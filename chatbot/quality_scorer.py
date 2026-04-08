@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from enum import Enum
 import re
 
-from langchain.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from core.llm import get_chat_llm
 

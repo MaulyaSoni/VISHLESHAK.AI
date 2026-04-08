@@ -54,7 +54,7 @@ def print_startup_summary(session_id: str) -> None:
         session_id: Current session ID
     """
     print("\n" + "="*60)
-    print("🤖 Vishleshak AI v1 - Startup Summary")
+    print("Vishleshak AI v2 - Startup Summary")
     print("="*60)
     
     # Vector store stats
@@ -63,20 +63,20 @@ def print_startup_summary(session_id: str) -> None:
         vs = get_vector_store()
         stats = vs.get_all_stats()
         total = sum(s.get('count', 0) for s in stats.values())
-        print(f"✅ RAG System: {total} items in vector store")
+        print(f"RAG System: {total} items in vector store")
     except Exception as e:
-        print(f"⚠️  RAG System: Not initialized ({str(e)})")
+        print(f"RAG System: Not initialized ({str(e)})")
     
     # Tools
     try:
         from tools import get_tool_registry
         tr = get_tool_registry()
         tools = tr.get_all_tools()
-        print(f"✅ Tools: {len(tools)} tools ready")
+        print(f"Tools: {len(tools)} tools ready")
     except Exception as e:
-        print(f"⚠️  Tools: Not initialized ({str(e)})")
+        print(f"Tools: Not initialized ({str(e)})")
     
-    print(f"✅ Session ID: {session_id[:8]}...")
+    print(f"Session ID: {session_id[:8]}...")
     print("="*60 + "\n")
 
 

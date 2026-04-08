@@ -68,3 +68,14 @@ pyjwt>=2.8.0
 # Testing (NEW)
 pytest==8.0.0
 pytest-asyncio==0.23.5
+
+# Cloud Storage (NEW)
+google-auth==2.28.1
+google-api-python-client==2.126.0
+msal==1.27.0
+
+# Scheduling (NEW)
+apscheduler==3.10.4
+
+# Chart export (NEW)
+kaleido==0.2.1

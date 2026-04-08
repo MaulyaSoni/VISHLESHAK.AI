@@ -5,7 +5,7 @@ Implements explicit step-by-step reasoning with memory
 
 from typing import Dict, List, Any, Optional
 import logging
-from langchain.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from core.llm import get_chat_llm
 from core.enhanced_memory import EnhancedMemoryManager
