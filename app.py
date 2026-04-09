@@ -91,6 +91,7 @@ except Exception as e:
 
 try:
     from agentic_core.supervisor_graph import invoke_supervisor, get_supervisor_graph
+    from agentic_core.proactive_engine import ProactiveEngine
     from tools.specialized import (
         StatisticalAnalyzerTool,
         CorrelationFinderTool,
@@ -179,26 +180,26 @@ DARK = dict(
     gradient_accent="linear-gradient(135deg, #6366F1, #06B6D4)",
     gradient_title="linear-gradient(135deg, #6366F1 0%, #06B6D4 50%, #10B981 100%)",
 )
-# LIGHT = dict(
-#     bg="#FFFFFF",           # Pure white
-#     surface="#F8FAFC",      # Elevated surface
-#     surface2="#F1F5F9",     # Secondary surface
-#     border="#E2E8F0",       # Subtle borders
-#     text="#0F172A",         # High contrast text
-#     muted="#475569",        # Muted text
-#     accent="#4F46E5",       # Deeper indigo - primary
-#     accent2="#0891B2",      # Deeper cyan - secondary
-#     accent3="#059669",      # Deeper green - success
-#     card_bg="#F8FAFC",
-#     card_border="#E2E8F0",
-#     user_msg="#EEF2FF",     # Light indigo tint
-#     bot_msg="#ECFDF5",      # Light green tint
-#     user_border="#4F46E5",  # Indigo border
-#     bot_border="#059669",   # Green border
-#     btn_text="#FFFFFF",
-#     gradient_accent="linear-gradient(135deg, #4F46E5, #0891B2)",
-#     gradient_title="linear-gradient(135deg, #4F46E5 0%, #0891B2 50%, #059669 100%)",
-# )
+LIGHT = dict(
+    bg="#FFFFFF",           # Pure white
+    surface="#F8FAFC",      # Elevated surface
+    surface2="#F1F5F9",     # Secondary surface
+    border="#E2E8F0",       # Subtle borders
+    text="#0F172A",         # High contrast text
+    muted="#475569",        # Muted text
+    accent="#4F46E5",       # Deeper indigo - primary
+    accent2="#0891B2",      # Deeper cyan - secondary
+    accent3="#059669",      # Deeper green - success
+    card_bg="#F8FAFC",
+    card_border="#E2E8F0",
+    user_msg="#EEF2FF",     # Light indigo tint
+    bot_msg="#ECFDF5",      # Light green tint
+    user_border="#4F46E5",  # Indigo border
+    bot_border="#059669",   # Green border
+    btn_text="#FFFFFF",
+    gradient_accent="linear-gradient(135deg, #4F46E5, #0891B2)",
+    gradient_title="linear-gradient(135deg, #4F46E5 0%, #0891B2 50%, #059669 100%)",
+)
 
 T = DARK if st.session_state.dark_mode else LIGHT
 
@@ -1062,12 +1063,12 @@ with st.sidebar:
     # st.markdown('<div class="sidebar-section">Appearance</div>', unsafe_allow_html=True)
     # col_t1, col_t2 = st.columns([2, 3])
     # with col_t1:
-    #     st.markdown("**Theme**", help="Switch between dark and light mode")
+        st.markdown("**Theme**", help="Switch between dark and light mode")
     # with col_t2:
-    #     dark_label = "☀️ Light" if st.session_state.dark_mode else "🌙 Dark"
-    #     if st.button(dark_label, use_container_width=True):
-    #         st.session_state.dark_mode = not st.session_state.dark_mode
-    #         st.rerun()
+        dark_label = "☀️ Light" if st.session_state.dark_mode else "🌙 Dark"
+        if st.button(dark_label, use_container_width=True):
+            st.session_state.dark_mode = not st.session_state.dark_mode
+            st.rerun()
     st.session_state.dark_mode = True  # Always dark
 
     # ── Mode selector ────────────────────────────────────────
@@ -1261,12 +1262,36 @@ if st.session_state.data is None:
                 st.error(f"❌ {error}")
             else:
                 df = DataLoader.clean_dataframe_for_streamlit(df)
+                
+                # Compute dataset_hash for proactive engine
+                import hashlib
+                col_hash = hashlib.md5(",".join(sorted(df.columns.tolist())).encode()).hexdigest()[:12]
+                
                 st.session_state.data = df
+                st.session_state.dataset_hash = col_hash
                 st.session_state.qa_chain = None
                 st.session_state.analysis_result = None
                 st.session_state.show_visuals = False
-                st.session_state.charts_cache = None  # Clear charts cache
+                st.session_state.charts_cache = None
                 st.session_state.generating_visuals = False
+                
+                # Trigger proactive engine (fire and forget)
+                try:
+                    user_id = st.session_state.auth_user.username if st.session_state.get("auth_user") else "default"
+                    if "proactive_engine" not in st.session_state:
+                        st.session_state.proactive_engine = ProactiveEngine(
+                            user_id=user_id,
+                            session_id=st.session_state.session_id,
+                        )
+                    st.session_state.proactive_engine.run_async(
+                        df=df,
+                        dataset_hash=col_hash,
+                        dataset_name=uploaded_file.name,
+                        domain=st.session_state.get("selected_domain", "general"),
+                    )
+                except Exception as e:
+                    logger.warning(f"Proactive engine error: {e}")
+                
                 st.success(f"✅ Loaded **{len(df):,} rows × {len(df.columns)} columns** from `{uploaded_file.name}`")
                 st.rerun()
 
@@ -1287,6 +1312,15 @@ else:
     missing_pct = round(df.isnull().sum().sum() / max(1, df.shape[0]*df.shape[1]) * 100, 1)
     c5.metric("Missing %", f"{missing_pct}%")
 
+    # ── Poll proactive flags ──────────────────────────────────
+    if "proactive_engine" in st.session_state:
+        try:
+            flags = st.session_state.proactive_engine.poll_flags()
+            for flag in flags:
+                st.toast(f"{flag['icon']} {flag['message']}", icon=None)
+        except Exception as e:
+            logger.warning(f"Proactive poll error: {e}")
+
     # Upload new file (inline, small)
     with st.expander("📂 Upload a different file"):
         new_file = st.file_uploader("Replace dataset", type=["csv","xlsx","xls"], label_visibility="collapsed")
@@ -1299,12 +1333,37 @@ else:
             if err:
                 st.error(err)
             else:
-                st.session_state.data = DataLoader.clean_dataframe_for_streamlit(df2)
+                df2 = DataLoader.clean_dataframe_for_streamlit(df2)
+                
+                # Compute dataset_hash for proactive engine
+                import hashlib
+                col_hash = hashlib.md5(",".join(sorted(df2.columns.tolist())).encode()).hexdigest()[:12]
+                
+                st.session_state.data = df2
+                st.session_state.dataset_hash = col_hash
                 st.session_state.qa_chain = None
                 st.session_state.analysis_result = None
                 st.session_state.show_visuals = False
-                st.session_state.charts_cache = None  # Clear charts cache
+                st.session_state.charts_cache = None
                 st.session_state.generating_visuals = False
+                
+                # Trigger proactive engine on replace
+                try:
+                    user_id = st.session_state.auth_user.username if st.session_state.get("auth_user") else "default"
+                    if "proactive_engine" not in st.session_state:
+                        st.session_state.proactive_engine = ProactiveEngine(
+                            user_id=user_id,
+                            session_id=st.session_state.session_id,
+                        )
+                    st.session_state.proactive_engine.run_async(
+                        df=df2,
+                        dataset_hash=col_hash,
+                        dataset_name=new_file.name,
+                        domain=st.session_state.get("selected_domain", "general"),
+                    )
+                except Exception as e:
+                    logger.warning(f"Proactive engine error: {e}")
+                
                 st.rerun()
 
     st.markdown("<hr>", unsafe_allow_html=True)
@@ -1343,13 +1402,17 @@ else:
                         )
                         
                         # Store supervisor result in session
+                        supervisor_data = result
                         st.session_state.analysis_result = {
-                            "executive_summary": result.get("insights_text", "Analysis completed"),
-                            "profile": result.get("dataset_meta", {}).get("profile", {}),
-                            "statistics": result.get("analysis_result", {}).get("statistics", {}),
-                            "supervisor_result": result
+                            "executive_summary": supervisor_data.get("insights_text", "Analysis completed"),
+                            "profile": supervisor_data.get("dataset_meta", {}).get("profile", {}),
+                            "statistics": supervisor_data.get("analysis_result", {}).get("statistics", {}),
+                            "supervisor_result": supervisor_data,
+                            "ai_insights": supervisor_data.get("insights_text", "No insights generated."),
+                            "statistical_analysis": supervisor_data.get("dataset_meta", {}),
+                            "pattern_analysis": supervisor_data.get("proactive_flags", []) or {}
                         }
-                        st.session_state.charts_cache = result.get("charts", [])
+                        st.session_state.charts_cache = supervisor_data.get("charts", [])
                     else:
                         # Use original InsightGenerator (v1)
                         prog.progress(20, text="📐 Computing statistics…")
@@ -1390,7 +1453,10 @@ else:
                                 "executive_summary": result.get("insights_text", "Analysis completed"),
                                 "profile": result.get("dataset_meta", {}).get("profile", {}),
                                 "statistics": result.get("analysis_result", {}).get("statistics", {}),
-                                "supervisor_result": result
+                                "supervisor_result": result,
+                                "ai_insights": result.get("insights_text", "No insights generated."),
+                                "statistical_analysis": result.get("dataset_meta", {}),
+                                "pattern_analysis": result.get("proactive_flags", []) or {}
                             }
                             st.session_state.charts_cache = result.get("charts", [])
                         else:
@@ -1565,32 +1631,58 @@ else:
             with tab2:
                 stats = result.get("statistical_analysis", {})
                 if stats:
-                    basic = stats.get("basic_info", {})
-                    if basic:
-                        b1, b2, b3, b4 = st.columns(4)
-                        b1.metric("Rows", f"{basic.get('total_rows',0):,}")
-                        b2.metric("Columns", basic.get("total_columns", 0))
-                        b3.metric("Numeric", basic.get("numeric_columns", 0))
-                        b4.metric("Categorical", basic.get("categorical_columns", 0))
-                    num_analysis = stats.get("numeric_analysis", {})
-                    if num_analysis:
-                        st.markdown("#### Numeric Summary")
-                        try:
-                            st.dataframe(
-                                pd.DataFrame(num_analysis).T.round(3),
-                                width='stretch'
-                            )
-                        except Exception:
-                            st.json(num_analysis)
+                    if "basic_info" in stats:
+                        basic = stats.get("basic_info", {})
+                        if basic:
+                            b1, b2, b3, b4 = st.columns(4)
+                            b1.metric("Rows", f"{basic.get('total_rows',0):,}")
+                            b2.metric("Columns", basic.get("total_columns", 0))
+                            b3.metric("Numeric", basic.get("numeric_columns", 0))
+                            b4.metric("Categorical", basic.get("categorical_columns", 0))
+                        num_analysis = stats.get("numeric_analysis", {})
+                        if num_analysis:
+                            st.markdown("#### Numeric Summary")
+                            try:
+                                st.dataframe(
+                                    pd.DataFrame(num_analysis).T.round(3),
+                                    width='stretch'
+                                )
+                            except Exception:
+                                st.json(num_analysis)
+                    else:
+                        profile = stats.get("profile", {})
+                        if profile:
+                            b1, b2, b3, b4 = st.columns(4)
+                            b1.metric("Rows", f"{profile.get('rows', 0):,}")
+                            b2.metric("Columns", profile.get("columns", 0))
+                            b3.metric("Numeric", len(profile.get("numeric_columns", [])))
+                            b4.metric("Categorical", len(profile.get("categorical_columns", [])))
+                        col_stats = stats.get("statistics", {})
+                        if col_stats:
+                            st.markdown("#### Numeric Summary")
+                            try:
+                                stats_df = pd.DataFrame(col_stats).T
+                                stats_df = stats_df[['mean', 'median', 'std', 'min', 'max']].round(3)
+                                st.dataframe(stats_df, width='stretch')
+                            except Exception:
+                                st.json(col_stats)
 
             with tab3:
                 patterns = result.get("pattern_analysis", {})
                 if patterns:
-                    for p_type, p_list in patterns.items():
-                        if p_list:
-                            st.subheader(p_type.replace("_", " ").title())
-                            for p in p_list:
-                                st.markdown(f"- {p.get('interpretation', str(p))}")
+                    if isinstance(patterns, dict):
+                        for p_type, p_list in patterns.items():
+                            if p_list:
+                                st.subheader(p_type.replace("_", " ").title())
+                                for p in p_list:
+                                    st.markdown(f"- {p.get('interpretation', str(p))}")
+                    elif isinstance(patterns, list):
+                        if patterns:
+                            st.subheader("Key Findings & Anomalies")
+                            for p in patterns:
+                                st.markdown(f"- {p}")
+                    else:
+                        st.info("No patterns detected.")
                 else:
                     st.info("No patterns detected.")
 

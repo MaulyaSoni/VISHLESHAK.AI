@@ -16,15 +16,21 @@ AgentExecutor = None
 create_react_agent = None
 
 try:
-    from langchain.agents import AgentExecutor, create_react_agent
+    from langchain_core.agents import create_react_agent, AgentExecutor
     _AGENT_AVAILABLE = True
 except ImportError:
     try:
-        from langchain.agents import create_react_agent
-        from langchain_core.agents import AgentExecutor
+        from langchain.agents import AgentExecutor
+        from langchain.agents import create_react_agent as _create_react_agent
+        create_react_agent = _create_react_agent
         _AGENT_AVAILABLE = True
     except ImportError:
-        logger.warning("AgentExecutor not available - using fallback mode")
+        try:
+            from langchain.agents import create_react_agent
+            from langchain_core.agents import AgentExecutor
+            _AGENT_AVAILABLE = True
+        except ImportError:
+            pass  # Will use fallback mode silently
 
 from langchain_core.prompts import PromptTemplate
 from langchain_core.tools import BaseTool

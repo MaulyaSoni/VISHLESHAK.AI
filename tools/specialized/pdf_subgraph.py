@@ -237,7 +237,13 @@ def _node_summary_page(state: dict, styles: dict, dc: dict) -> list:
             story.append(_health_bar(float(health), styles))
             story.append(Spacer(1, 10))
 
-    flags = state.get("proactive_flags", [])
+    flags_raw = state.get("proactive_flags", [])
+    if flags_raw and not isinstance(flags_raw, (list, tuple)):
+        flags = [flags_raw]
+    elif isinstance(flags_raw, tuple):
+        flags = list(flags_raw)
+    else:
+        flags = flags_raw or []
     if flags:
         story.append(Paragraph("Key Findings", styles["section_heading"]))
         story += _section_divider(dc)
@@ -284,7 +290,13 @@ def _node_charts_page(state: dict, styles: dict, dc: dict) -> list:
 
 def _node_findings_page(state: dict, styles: dict, dc: dict) -> list:
     story = []
-    flags = state.get("proactive_flags", [])
+    flags_raw = state.get("proactive_flags", [])
+    if flags_raw and not isinstance(flags_raw, (list, tuple)):
+        flags = [flags_raw]
+    elif isinstance(flags_raw, tuple):
+        flags = list(flags_raw)
+    else:
+        flags = flags_raw or []
 
     if flags:
         story += [Paragraph("Anomalies & Alerts", styles["section_heading"])]
