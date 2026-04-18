@@ -144,6 +144,11 @@ defaults = dict(
     auth_token=None,
     current_conv_id=None,
     show_settings=False,
+    # Data Agent
+    agent_status="idle",
+    agent_report=None,
+    agent_steps=[],
+    agent_error=None,
 )
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -1066,7 +1071,7 @@ with st.sidebar:
         st.markdown("**Theme**", help="Switch between dark and light mode")
     # with col_t2:
         dark_label = "☀️ Light" if st.session_state.dark_mode else "🌙 Dark"
-        if st.button(dark_label, use_container_width=True):
+        if st.button(dark_label, use_container_width=True, key="theme_toggle_btn"):
             st.session_state.dark_mode = not st.session_state.dark_mode
             st.rerun()
     st.session_state.dark_mode = True  # Always dark
@@ -1075,11 +1080,16 @@ with st.sidebar:
     st.markdown('<div class="sidebar-section">Mode</div>', unsafe_allow_html=True)
     mode_choice = st.radio(
         "mode",
-        ["📊 Comprehensive Analysis", "💬 RAG Chatbot"],
+        ["📊 Comprehensive Analysis", "💬 RAG Chatbot", "🤖 Data Agent"],
         label_visibility="collapsed",
-        index=0 if st.session_state.mode == "Analysis" else 1,
+        index=0 if st.session_state.mode == "Analysis" else (1 if st.session_state.mode == "Q&A" else 2),
     )
-    st.session_state.mode = "Analysis" if "Analysis" in mode_choice else "Q&A"
+    if "Analysis" in mode_choice:
+        st.session_state.mode = "Analysis"
+    elif "Chatbot" in mode_choice:
+        st.session_state.mode = "Q&A"
+    else:
+        st.session_state.mode = "DataAgent"
     
     # ── Agent mode toggle (Analysis mode) ─────────────────────────
     if st.session_state.mode == "Analysis" and SUPERVISOR_AVAILABLE:
@@ -1136,7 +1146,7 @@ with st.sidebar:
                         unsafe_allow_html=True,
                     )
 
-                if st.button("➕ New Chat", width='stretch'):
+                if st.button("➕ New Chat", width='stretch', key="new_chat_btn"):
                     st.session_state.session_id = str(uuid.uuid4())
                     st.session_state.chat_history = []
                     st.session_state.qa_chain = None
@@ -1147,7 +1157,67 @@ with st.sidebar:
                     unsafe_allow_html=True,
                 )
 
-    # System status is intentionally hidden from users
+    # ── Data Agent Status ─────────────────────────────────────
+    if st.session_state.get("agent_status") == "error":
+        st.error("❌ Agent failed.")
+        err = st.session_state.get("agent_error","Unknown")
+        with st.expander("📋 Error Details"):
+            st.code(err)
+        if st.button("🔄 Retry", key="retry_btn"):
+            st.session_state.agent_status = "idle"
+            st.rerun()
+    
+    # ── Analysis History ──────────────────────────────────────
+    if AUTH_AVAILABLE and st.session_state.auth_user:
+        st.markdown('<div class="sidebar-section">📊 Analysis History</div>', unsafe_allow_html=True)
+        
+        try:
+            from database.analysis_repository import analysis_repository
+            
+            # Get user's analysis reports
+            reports = analysis_repository.get_user_reports(
+                user_id=st.session_state.auth_user.id,
+                limit=10,
+                include_completed_only=True
+            )
+            
+            if reports:
+                for report in reports:
+                    # Format timestamp
+                    created = report.created_at.strftime("%b %d, %H:%M") if report.created_at else "Unknown"
+                    
+                    # Create clickable history item
+                    col1, col2 = st.columns([4, 1])
+                    with col1:
+                        st.markdown(
+                            f'<div style="padding:8px;border-left:3px solid #4fc3f7;margin:4px 0;'
+                            f'background:rgba(79,195,247,0.1);border-radius:0 4px 4px 0;cursor:pointer;'
+                            f'title="{report.instruction}">'
+                            f'<div style="font-size:0.85rem;color:#fff;">{report.title[:30]}...</div>'
+                            f'<div style="font-size:0.7rem;color:#888;">{created} • {report.mode}</div>'
+                            f'</div>',
+                            unsafe_allow_html=True
+                        )
+                    with col2:
+                        if st.button("📂", key=f"load_analysis_{report.id}", help="Load this analysis"):
+                            # Load the full report
+                            full_data = analysis_repository.get_full_report_data(report.id)
+                            if full_data:
+                                st.session_state.agent_report = full_data
+                                st.session_state.agent_status = "done"
+                                st.session_state.agent_instruction = report.instruction
+                                st.session_state.agent_selected_mode = report.mode
+                                st.rerun()
+                
+                if len(reports) == 10:
+                    st.caption("Showing last 10 analyses...")
+            else:
+                st.markdown(
+                    '<div style="color:var(--muted);font-size:0.8rem;padding:0.5rem;">No analysis history yet.</div>',
+                    unsafe_allow_html=True
+                )
+        except Exception as e:
+            st.caption("Analysis history unavailable")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1164,7 +1234,7 @@ if not st.session_state.initialized:
 if AUTH_AVAILABLE and st.session_state.get("show_settings") and st.session_state.auth_user:
     with st.expander("⚙️ Account Settings", expanded=True):
         render_user_settings()
-        if st.button("✕ Close Settings"):
+        if st.button("✕ Close Settings", key="close_settings_btn"):
             st.session_state.show_settings = False
             st.rerun()
 
@@ -1194,7 +1264,7 @@ st.markdown("<hr>", unsafe_allow_html=True)
 # ─────────────────────────────────────────────────────────────────────────────
 # DATA NOT LOADED → WELCOME + UPLOAD
 # ─────────────────────────────────────────────────────────────────────────────
-if st.session_state.data is None:
+if st.session_state.data is None and st.session_state.mode != "DataAgent":
 
     # Feature showcase
     st.markdown("""
@@ -1296,8 +1366,12 @@ if st.session_state.data is None:
                 st.rerun()
 
 # ─────────────────────────────────────────────────────────────────────────────
-# DATA LOADED
+# DATA LOADED OR DATA AGENT MODE
 # ─────────────────────────────────────────────────────────────────────────────
+if st.session_state.mode == "DataAgent":
+    df = None
+elif st.session_state.data is None:
+    df = None
 else:
     df = st.session_state.data
 
@@ -1371,7 +1445,7 @@ else:
     # ════════════════════════════════════════════════════════
     # ANALYSIS MODE
     # ════════════════════════════════════════════════════════
-    if st.session_state.mode == "Analysis":
+    if st.session_state.mode == "Analysis" and df is not None:
 
         st.markdown("## 📊 Comprehensive Analysis")
 
@@ -1380,7 +1454,7 @@ else:
 
         # ── Buttons ──────────────────────────────────────────
         if st.session_state.analysis_result is None:
-            if st.button("🚀 Analyse Data", type="primary", width='content'):
+            if st.button("🚀 Analyse Data", type="primary", width='content', key="analyse_data_btn"):
                 prog = st.progress(0, text="🔄 Initialising analysis engine…")
                 try:
                     # Check if supervisor graph should be used (v2 mode)
@@ -1389,11 +1463,14 @@ else:
                     prog.progress(10, text="🧠 Starting agentic supervisor…")
                     
                     if use_supervisor:
-                        # Use new LangGraph supervisor (v2)
+                        # ═══════════════════════════════════════════════
+                        # V2 MODE: Use Multi-Agent Supervisor (LangGraph)
+                        # ═══════════════════════════════════════════════
                         from config.domain_config import detect_domain_from_columns
                         domain = detect_domain_from_columns(df.columns.tolist())
                         
-                        result = invoke_supervisor(
+                        prog.progress(20, text="🧠 Running agentic supervisor (v2)…")
+                        result_supervisor = invoke_supervisor(
                             user_query="Comprehensive data analysis",
                             dataset=df,
                             user_id=st.session_state.auth_user.username if st.session_state.get("auth_user") else "default",
@@ -1401,26 +1478,75 @@ else:
                             domain=domain
                         )
                         
-                        # Store supervisor result in session
-                        supervisor_data = result
-                        st.session_state.analysis_result = {
-                            "executive_summary": supervisor_data.get("insights_text", "Analysis completed"),
-                            "profile": supervisor_data.get("dataset_meta", {}).get("profile", {}),
-                            "statistics": supervisor_data.get("analysis_result", {}).get("statistics", {}),
-                            "supervisor_result": supervisor_data,
-                            "ai_insights": supervisor_data.get("insights_text", "No insights generated."),
-                            "statistical_analysis": supervisor_data.get("dataset_meta", {}),
-                            "pattern_analysis": supervisor_data.get("proactive_flags", []) or {}
+                        # Build v2 result with supervisor output
+                        stats = result_supervisor.get("dataset_meta", {})
+                        profile = stats.get("profile", {})
+                        column_stats = stats.get("statistics", {})
+                        
+                        v2_stats = {
+                            "basic_info": {
+                                "total_rows": profile.get("rows", 0),
+                                "total_columns": profile.get("columns", 0),
+                                "numeric_columns": profile.get("numeric_count", 0),
+                                "categorical_columns": profile.get("categorical_count", 0)
+                            },
+                            "numeric_analysis": column_stats
                         }
-                        st.session_state.charts_cache = supervisor_data.get("charts", [])
+                        
+                        st.session_state.analysis_result = {
+                            "executive_summary": result_supervisor.get("insights_text", "Analysis completed"),
+                            "profile": profile,
+                            "statistics": column_stats,
+                            "supervisor_result": result_supervisor,
+                            "ai_insights": result_supervisor.get("insights_text", "No insights generated."),
+                            "statistical_analysis": v2_stats,
+                            "pattern_analysis": result_supervisor.get("proactive_flags", []) or [],
+                            "is_v2": True  # Mark as v2 result
+                        }
+                        
+                        # Convert supervisor PNG charts to Plotly figures for display
+                        prog.progress(80, text="📊 Converting charts for display...")
+                        supervisor_charts = result_supervisor.get("charts", [])
+                        named_charts = []
+                        
+                        for chart_path in supervisor_charts:
+                            if os.path.exists(chart_path):
+                                try:
+                                    import plotly.graph_objects as go
+                                    from PIL import Image
+                                    import numpy as np
+                                    
+                                    img = Image.open(chart_path)
+                                    fig = go.Figure()
+                                    fig.add_trace(go.Image(z=np.array(img)))
+                                    fig.update_layout(
+                                        title=os.path.basename(chart_path).replace("chart_", "").replace(".png", ""),
+                                        template="plotly_white",
+                                        margin=dict(l=10, r=10, t=40, b=10)
+                                    )
+                                    named_charts.append((os.path.basename(chart_path), fig))
+                                except Exception as e:
+                                    logger.warning(f"Failed to convert chart {chart_path}: {e}")
+                        
+                        st.session_state.charts_cache = named_charts
+                        prog.progress(100, text="✅ V2 Analysis complete!")
                     else:
-                        # Use original InsightGenerator (v1)
+                        # ═══════════════════════════════════════════════
+                        # V1 MODE: Use original InsightGenerator
+                        # ═══════════════════════════════════════════════
                         prog.progress(20, text="📐 Computing statistics…")
                         generator = InsightGenerator(df)
                         prog.progress(55, text="🤖 Generating AI insights…")
                         result = generator.generate_comprehensive_insights()
                         prog.progress(90, text="✅ Finalising…")
+                        result["is_v2"] = False  # Mark as v1 result
                         st.session_state.analysis_result = result
+                        
+                        # Generate charts using DashboardVisualizer
+                        dashboard = DashboardVisualizer(df)
+                        named_charts = dashboard.create_overview_dashboard()
+                        st.session_state.charts_cache = named_charts
+                        prog.progress(100, text="✅ V1 Analysis complete!")
                     
                     st.session_state.show_visuals = False
                     st.session_state.generating_visuals = False
@@ -1434,39 +1560,92 @@ else:
         else:
             btn1, btn2, btn3 = st.columns([2, 2, 6])
             with btn1:
-                if st.button("🔄 Re-Analyse", width='stretch'):
+                if st.button("🔄 Re-Analyse", width='stretch', key="re_analyse_btn"):
                     prog = st.progress(0, text="🔄 Re-running…")
                     try:
                         use_supervisor = SUPERVISOR_AVAILABLE and st.session_state.get("use_agent_mode", False)
                         
                         if use_supervisor:
-                            prog.progress(20, text="🧠 Running supervisor graph…")
+                            # ═══════════════════════════════════════════════
+                            # V2 MODE: Re-run with Multi-Agent Supervisor
+                            # ═══════════════════════════════════════════════
+                            prog.progress(20, text="🧠 Running agentic supervisor (v2)…")
                             domain = st.session_state.get("selected_domain", "general")
-                            result = invoke_supervisor(
+                            result_supervisor = invoke_supervisor(
                                 user_query="Comprehensive data analysis",
                                 dataset=df,
                                 user_id=st.session_state.auth_user.username if st.session_state.get("auth_user") else "default",
                                 session_id=st.session_state.session_id,
                                 domain=domain
                             )
-                            st.session_state.analysis_result = {
-                                "executive_summary": result.get("insights_text", "Analysis completed"),
-                                "profile": result.get("dataset_meta", {}).get("profile", {}),
-                                "statistics": result.get("analysis_result", {}).get("statistics", {}),
-                                "supervisor_result": result,
-                                "ai_insights": result.get("insights_text", "No insights generated."),
-                                "statistical_analysis": result.get("dataset_meta", {}),
-                                "pattern_analysis": result.get("proactive_flags", []) or {}
+                            
+                            # Build v2 result
+                            stats = result_supervisor.get("dataset_meta", {})
+                            profile = stats.get("profile", {})
+                            column_stats = stats.get("statistics", {})
+                            
+                            v2_stats = {
+                                "basic_info": {
+                                    "total_rows": profile.get("rows", 0),
+                                    "total_columns": profile.get("columns", 0),
+                                    "numeric_columns": profile.get("numeric_count", 0),
+                                    "categorical_columns": profile.get("categorical_count", 0)
+                                },
+                                "numeric_analysis": column_stats
                             }
-                            st.session_state.charts_cache = result.get("charts", [])
+                            
+                            st.session_state.analysis_result = {
+                                "executive_summary": result_supervisor.get("insights_text", "Analysis completed"),
+                                "profile": profile,
+                                "statistics": column_stats,
+                                "supervisor_result": result_supervisor,
+                                "ai_insights": result_supervisor.get("insights_text", "No insights generated."),
+                                "statistical_analysis": v2_stats,
+                                "pattern_analysis": result_supervisor.get("proactive_flags", []) or [],
+                                "is_v2": True
+                            }
+                            
+                            # Convert supervisor PNG charts
+                            prog.progress(80, text="📊 Converting charts for display...")
+                            supervisor_charts = result_supervisor.get("charts", [])
+                            named_charts = []
+                            
+                            for chart_path in supervisor_charts:
+                                if os.path.exists(chart_path):
+                                    try:
+                                        import plotly.graph_objects as go
+                                        from PIL import Image
+                                        import numpy as np
+                                        
+                                        img = Image.open(chart_path)
+                                        fig = go.Figure()
+                                        fig.add_trace(go.Image(z=np.array(img)))
+                                        fig.update_layout(
+                                            title=os.path.basename(chart_path).replace("chart_", "").replace(".png", ""),
+                                            template="plotly_white",
+                                            margin=dict(l=10, r=10, t=40, b=10)
+                                        )
+                                        named_charts.append((os.path.basename(chart_path), fig))
+                                    except Exception as e:
+                                        logger.warning(f"Failed to convert chart {chart_path}: {e}")
+                            
+                            st.session_state.charts_cache = named_charts
                         else:
+                            # ═══════════════════════════════════════════════
+                            # V1 MODE: Re-run with InsightGenerator
+                            # ═══════════════════════════════════════════════
                             prog.progress(30, text="📐 Computing…")
                             generator = InsightGenerator(df)
                             prog.progress(65, text="🤖 AI thinking…")
                             result = generator.generate_comprehensive_insights()
+                            result["is_v2"] = False
                             st.session_state.analysis_result = result
+                            
+                            # Generate charts
+                            dashboard = DashboardVisualizer(df)
+                            named_charts = dashboard.create_overview_dashboard()
+                            st.session_state.charts_cache = named_charts
                         st.session_state.show_visuals = False
-                        st.session_state.charts_cache = None  # Clear charts cache
                         st.session_state.generating_visuals = False
                         import time; time.sleep(0.3)
                         prog.empty()
@@ -1476,7 +1655,7 @@ else:
                         handle_error(e, "Re-Analysis")
             with btn2:
                 vis_label = "🔒 Hide Charts" if st.session_state.show_visuals else "📊 Generate Visuals"
-                if st.button(vis_label, width='stretch'):
+                if st.button(vis_label, width='stretch', key="toggle_visuals_btn"):
                     if not st.session_state.show_visuals:
                         # Trigger visual generation
                         st.session_state.generating_visuals = True
@@ -1498,62 +1677,151 @@ else:
             </div>
             """, unsafe_allow_html=True)
 
+            # ── PDF Download (v2 mode) ─────────────────────────────
+            supervisor_result = result.get("supervisor_result", {})
+            if supervisor_result and supervisor_result.get("pdf_path"):
+                pdf_path = supervisor_result["pdf_path"]
+                if pdf_path and os.path.exists(pdf_path):
+                    with open(pdf_path, "rb") as pdf_file:
+                        pdf_bytes = pdf_file.read()
+                    st.download_button(
+                        label="📄 Download PDF Report",
+                        data=pdf_bytes,
+                        file_name=os.path.basename(pdf_path),
+                        mime="application/pdf",
+                        key="download_pdf_btn"
+                    )
+
             # ── Visualisations ───────────────────────────────
             if st.session_state.show_visuals:
                 st.markdown("## 📈 Interactive Analytics Dashboard")
                 
                 # Check if we need to generate charts
                 if st.session_state.charts_cache is None or st.session_state.generating_visuals:
-                    # Check if we have supervisor charts already
-                    supervisor_result = result.get("supervisor_result", {})
-                    existing_charts = supervisor_result.get("charts", []) if supervisor_result else []
+                    # Check if we're in v2 mode with supervisor
+                    use_supervisor = SUPERVISOR_AVAILABLE and st.session_state.get("use_agent_mode", False)
+                    supervisor_result = result.get("supervisor_result", {}) if result.get("supervisor_result") else {}
                     
-                    if existing_charts and len(existing_charts) > 0:
-                        # Use supervisor-generated charts
-                        st.session_state.charts_cache = existing_charts
-                        st.session_state.generating_visuals = False
-                        logger.info(f"Using supervisor charts: {len(existing_charts)}")
-                    else:
-                        # Generate charts using DashboardVisualizer
+                    # In v2 mode, always use DashboardVisualizer for proper plotly charts
+                    if use_supervisor and supervisor_result:
+                        # Generate charts using DashboardVisualizer for v2 mode
                         prog_vis = st.progress(0, text="🎨 Initializing dashboard builder…")
                         st.markdown('<div class="loading-bar"></div>', unsafe_allow_html=True)
                     
-                    try:
-                        import time
-                        prog_vis.progress(10, text="📊 Analyzing dataset structure…")
-                        time.sleep(0.2)
+                        try:
+                            import time
+                            prog_vis.progress(10, text="📊 Analyzing dataset structure…")
+                            time.sleep(0.2)
+                            
+                            dashboard = DashboardVisualizer(df)
+                            
+                            prog_vis.progress(25, text="🔍 Identifying data quality patterns…")
+                            time.sleep(0.2)
+                            
+                            prog_vis.progress(40, text="📈 Generating distribution charts…")
+                            time.sleep(0.2)
+                            
+                            prog_vis.progress(55, text="🔗 Computing correlations…")
+                            time.sleep(0.2)
+                            
+                            prog_vis.progress(70, text="🏷️ Creating categorical breakdowns…")
+                            time.sleep(0.2)
+                            
+                            prog_vis.progress(85, text="✨ Finalizing visualizations…")
+                            named_charts = dashboard.create_overview_dashboard()
+                            
+                            prog_vis.progress(100, text="✅ Dashboard ready!")
+                            time.sleep(0.4)
+                            prog_vis.empty()
+                            
+                            # Cache the charts
+                            st.session_state.charts_cache = named_charts
+                            st.session_state.generating_visuals = False
+                            logger.info(f"V2 mode: Generated {len(named_charts)} charts via DashboardVisualizer")
+                        except Exception as e:
+                            prog_vis.empty()
+                            st.error(f"❌ Dashboard generation error: {e}")
+                            logger.error(f"Dashboard error: {e}", exc_info=True)
+                            st.session_state.generating_visuals = False
+                            st.session_state.charts_cache = []
+                            named_charts = []
+                    else:
+                        # Original v1 behavior - check for existing charts first
+                        existing_charts = supervisor_result.get("charts", []) if supervisor_result else []
                         
-                        dashboard = DashboardVisualizer(df)
-                        
-                        prog_vis.progress(25, text="🔍 Identifying data quality patterns…")
-                        time.sleep(0.2)
-                        
-                        prog_vis.progress(40, text="📈 Generating distribution charts…")
-                        time.sleep(0.2)
-                        
-                        prog_vis.progress(55, text="🔗 Computing correlations…")
-                        time.sleep(0.2)
-                        
-                        prog_vis.progress(70, text="🏷️ Creating categorical breakdowns…")
-                        time.sleep(0.2)
-                        
-                        prog_vis.progress(85, text="✨ Finalizing visualizations…")
-                        named_charts = dashboard.create_overview_dashboard()
-                        
-                        prog_vis.progress(100, text="✅ Dashboard ready!")
-                        time.sleep(0.4)
-                        prog_vis.empty()
-                        
-                        # Cache the charts
-                        st.session_state.charts_cache = named_charts
-                        st.session_state.generating_visuals = False
-                    except Exception as e:
-                        prog_vis.empty()
-                        st.error(f"❌ Dashboard generation error: {e}")
-                        logger.error(f"Dashboard error: {e}", exc_info=True)
-                        st.session_state.generating_visuals = False
-                        st.session_state.charts_cache = []
-                        named_charts = []
+                        if existing_charts and len(existing_charts) > 0:
+                            # Use supervisor-generated charts (file paths)
+                            named_charts = []
+                            for chart_path in existing_charts:
+                                if os.path.exists(chart_path):
+                                    try:
+                                        import plotly.io as pio
+                                        import plotly.graph_objects as go
+                                        from PIL import Image
+                                        import numpy as np
+                                        
+                                        img = Image.open(chart_path)
+                                        fig = go.Figure()
+                                        fig.add_trace(go.Image(z=np.array(img)))
+                                        fig.update_layout(
+                                            title=os.path.basename(chart_path).replace("chart_", "").replace(".png", ""),
+                                            template="plotly_white",
+                                            margin=dict(l=10, r=10, t=40, b=10)
+                                        )
+                                        named_charts.append((os.path.basename(chart_path), fig))
+                                    except Exception as e:
+                                        logger.warning(f"Failed to load chart {chart_path}: {e}")
+                            st.session_state.charts_cache = named_charts
+                            st.session_state.generating_visuals = False
+                            logger.info(f"Using supervisor charts: {len(named_charts)}")
+                            
+                            # Jump to display if we have charts
+                            if named_charts:
+                                named_charts = st.session_state.charts_cache
+                            else:
+                                # Fall back to DashboardVisualizer
+                                raise Exception("No valid charts from supervisor")
+                        else:
+                            # Generate charts using DashboardVisualizer for v1 mode
+                            prog_vis = st.progress(0, text="🎨 Initializing dashboard builder…")
+                            st.markdown('<div class="loading-bar"></div>', unsafe_allow_html=True)
+                    
+                            try:
+                                import time
+                                prog_vis.progress(10, text="📊 Analyzing dataset structure…")
+                                time.sleep(0.2)
+                                
+                                dashboard = DashboardVisualizer(df)
+                                
+                                prog_vis.progress(25, text="🔍 Identifying data quality patterns…")
+                                time.sleep(0.2)
+                                
+                                prog_vis.progress(40, text="📈 Generating distribution charts…")
+                                time.sleep(0.2)
+                                
+                                prog_vis.progress(55, text="🔗 Computing correlations…")
+                                time.sleep(0.2)
+                                
+                                prog_vis.progress(70, text="🏷️ Creating categorical breakdowns…")
+                                time.sleep(0.2)
+                                
+                                prog_vis.progress(85, text="✨ Finalizing visualizations…")
+                                named_charts = dashboard.create_overview_dashboard()
+                                
+                                prog_vis.progress(100, text="✅ Dashboard ready!")
+                                time.sleep(0.4)
+                                prog_vis.empty()
+                                
+                                # Cache the charts
+                                st.session_state.charts_cache = named_charts
+                                st.session_state.generating_visuals = False
+                            except Exception as e:
+                                prog_vis.empty()
+                                st.error(f"❌ Dashboard generation error: {e}")
+                                logger.error(f"Dashboard error: {e}", exc_info=True)
+                                st.session_state.generating_visuals = False
+                                st.session_state.charts_cache = []
+                                named_charts = []
                 else:
                     # Use cached charts
                     named_charts = st.session_state.charts_cache
@@ -1689,7 +1957,7 @@ else:
     # ════════════════════════════════════════════════════════
     # Q&A / RAG CHATBOT MODE
     # ════════════════════════════════════════════════════════
-    else:
+    if st.session_state.mode == "Q&A" and df is not None:
         st.markdown("## 💬 Vishleshak RAG Assistant")
 
         # ── Initialise QA chain ──────────────────────────────
@@ -2042,12 +2310,589 @@ else:
                 st.info("Ask a question to see the retrieved RAG context.")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# FOOTER
-# ─────────────────────────────────────────────────────────────────────────────
-st.markdown("""
-<div class="app-footer">
-    🔬 <strong>Vishleshak AI v1</strong> &nbsp;·&nbsp;
-    Built by Maulya Soni using LangChain 
-</div>
-""", unsafe_allow_html=True)
+
+if st.session_state.mode == "DataAgent":
+    st.markdown("## 🤖 Data Agent")
+
+    # Left panel - Input
+    col_left, col_right = st.columns([35, 65])
+    
+    with col_left:
+        st.markdown("### 📝 Input")
+        
+        agent_instruction = st.text_area(
+            "What do you want to analyze?",
+            placeholder="analyze Insurance.csv and find trends / train a model to predict Amount / download https://... and summarize",
+            height=120,
+            label_visibility="collapsed",
+        )
+        
+        agent_mode = st.radio(
+            "Mode",
+            ["Analysis Only", "Analysis + ML Model", "Analysis + ML + Notebook"],
+            index=1,
+        )
+        
+        uploaded_file = st.file_uploader(
+            "Upload CSV (optional)",
+            type=["csv"],
+            label_visibility="collapsed",
+            key="data_agent_uploader_2",
+        )
+        
+        uploaded_path = None
+        if uploaded_file:
+            os.makedirs(settings.UPLOAD_FOLDER, exist_ok=True)
+            uploaded_path = os.path.join(settings.UPLOAD_FOLDER, uploaded_file.name)
+            with open(uploaded_path, "wb") as f:
+                f.write(uploaded_file.getbuffer())
+        
+        with st.expander("⚙️ Advanced", expanded=False):
+            step_delay = st.slider("Step Delay (seconds)", 1, 5, 2)
+            max_loop_steps = st.slider("Max Loop Steps", 10, 25, 15)
+        
+        run_button = st.button("🚀 Run Agent", type="primary", use_container_width=True, key="data_agent_run_btn")
+    
+    with col_right:
+        st.markdown("### 📊 Output")
+        
+        # Initialize session state for agent
+        if "agent_report" not in st.session_state:
+            st.session_state.agent_report = None
+        if "agent_steps" not in st.session_state:
+            st.session_state.agent_steps = []
+        
+        # Empty state - show instructions
+        if not st.session_state.agent_steps and not st.session_state.agent_report:
+            st.markdown("""
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:0.8rem;padding:2rem;text-align:center;">
+                <div style="font-size:2rem;margin-bottom:1rem;">🤖</div>
+                <div style="color:var(--muted);font-size:0.9rem;">
+                    Enter an instruction and click <b>Run Agent</b> to start analysis.<br>
+                    Example: "analyze Insurance.csv and find trends"
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Run agent on button click
+        if run_button:
+            if not agent_instruction:
+                st.error("Please enter an instruction")
+            else:
+                try:
+                    from data_agent_3 import run_agent
+                    
+                    # Prepare instruction with file path and mode
+                    final_instruction = agent_instruction
+                    if uploaded_path:
+                        final_instruction = f"{uploaded_path} - {agent_instruction}"
+                    
+                    # Add mode-specific keywords to ensure agent runs correct pipeline
+                    if agent_mode == "Analysis + ML Model":
+                        if "train" not in final_instruction.lower() and "model" not in final_instruction.lower():
+                            final_instruction += " Train a machine learning model."
+                    elif agent_mode == "Analysis + ML + Notebook":
+                        if "notebook" not in final_instruction.lower():
+                            final_instruction += " Train a machine learning model and generate a jupyter notebook."
+                    elif agent_mode == "Analysis Only":
+                        # Ensure no ML keywords are present
+                        final_instruction += " Analysis only, no machine learning."
+                    
+                    # Store selected mode for UI reference
+                    st.session_state.agent_selected_mode = agent_mode
+                    
+                    # Map UI mode to agent task type
+                    mode_to_task = {
+                        "Analysis Only": "analysis_only",
+                        "Analysis + ML Model": "analysis_ml",
+                        "Analysis + ML + Notebook": "analysis_ml_notebook"
+                    }
+                    force_task_type = mode_to_task.get(agent_mode, "analysis_only")
+                    
+                    st.session_state.agent_status = "running"
+                    st.session_state.agent_steps = []
+                    st.session_state.agent_report = None
+                    
+                    # Run agent in a thread with file-based progress tracking
+                    import threading
+                    import json
+                    import os
+                    
+                    # Progress file path for thread communication
+                    os.makedirs("storage", exist_ok=True)
+                    progress_file = f"storage/agent_progress_{st.session_state.session_id}.json"
+                    
+                    def run_agent_thread():
+                        try:
+                            import data_agent_3 as da3
+                            from data_agent_3 import run_agent
+                            
+                            # Initialize progress file
+                            with open(progress_file, 'w') as f:
+                                json.dump({"steps": [], "status": "running"}, f)
+                            
+                            # Set up progress callback that writes to file
+                            def progress_callback(update):
+                                try:
+                                    step = update.get("step", "")
+                                    status = update.get("status", "")
+                                    # Read current progress
+                                    if os.path.exists(progress_file):
+                                        with open(progress_file, 'r') as f:
+                                            data = json.load(f)
+                                    else:
+                                        data = {"steps": [], "status": "running"}
+                                    
+                                    # Update steps list
+                                    existing = False
+                                    for i, s in enumerate(data["steps"]):
+                                        if s["step"] == step:
+                                            data["steps"][i]["status"] = status
+                                            existing = True
+                                            break
+                                    if not existing:
+                                        data["steps"].append({"step": step, "status": status})
+                                    
+                                    # Write back
+                                    with open(progress_file, 'w') as f:
+                                        json.dump(data, f)
+                                except Exception:
+                                    pass
+                            
+                            da3.set_progress_callback(progress_callback)
+                            
+                            # Run agent with forced task type from UI mode
+                            report = run_agent(final_instruction, force_task_type=force_task_type)
+                            
+                            # Update progress file with completion
+                            with open(progress_file, 'w') as f:
+                                json.dump({"steps": [], "status": "done", "report": report}, f)
+                                
+                        except Exception as e:
+                            # Update progress file with error
+                            with open(progress_file, 'w') as f:
+                                json.dump({"steps": [], "status": "error", "error": str(e)}, f)
+                    
+                    thread = threading.Thread(target=run_agent_thread, daemon=True)
+                    thread.start()
+                    
+                    # Small delay to let thread start
+                    import time
+                    time.sleep(0.5)
+                    
+                    st.rerun()
+                    
+                except ImportError as e:
+                    st.error(f"❌ Could not import data_agent_3: {e}")
+                except Exception as e:
+                    st.error(f"❌ Error: {e}")
+        
+        # Show progress during run
+        if st.session_state.get("agent_status") == "running":
+            st.markdown("#### 🔄 Agent Running...")
+            
+            # Read progress from file
+            import json
+            import os
+            progress_file = f"storage/agent_progress_{st.session_state.session_id}.json"
+            progress_data = {"steps": [], "status": "running"}
+            
+            try:
+                if os.path.exists(progress_file):
+                    with open(progress_file, 'r') as f:
+                        progress_data = json.load(f)
+            except Exception:
+                pass
+            
+            # Check if agent completed
+            if progress_data.get("status") == "done":
+                st.session_state.agent_report = progress_data.get("report")
+                st.session_state.agent_status = "done"
+                # Clean up progress file
+                try:
+                    os.remove(progress_file)
+                except Exception:
+                    pass
+                st.rerun()
+            elif progress_data.get("status") == "error":
+                st.session_state.agent_error = progress_data.get("error", "Unknown error")
+                st.session_state.agent_status = "error"
+                try:
+                    os.remove(progress_file)
+                except Exception:
+                    pass
+                st.rerun()
+            
+            # Progress bar
+            agent_steps = progress_data.get("steps", [])
+            total_steps = 10  # Total expected steps
+            current_step = len([s for s in agent_steps if s.get("status") == "done"])
+            progress = min(current_step / total_steps, 0.95)
+            st.progress(progress, text=f"Step {current_step}/{total_steps}: Processing...")
+            
+            # Show captured steps with visual indicators
+            st.markdown("**Progress Steps:**")
+            if agent_steps:
+                for step_info in agent_steps:
+                    status = step_info.get("status", "")
+                    step_name = step_info.get("step", "")
+                    if status == "done":
+                        st.success(f"✅ {step_name}")
+                    elif status == "running":
+                        st.info(f"🔄 {step_name}...")
+                    else:
+                        st.text(f"⏳ {step_name}")
+            else:
+                st.text("⏳ Initializing...")
+            
+            # Manual refresh button
+            col1, col2 = st.columns([1, 3])
+            with col1:
+                if st.button("🔄 Refresh Now", key="refresh_agent_status"):
+                    st.rerun()
+            with col2:
+                if st.button("⏹ Stop Agent", key="stop_agent_btn"):
+                    try:
+                        import data_agent_3 as da3
+                        da3.cancel_agent()
+                        st.session_state.agent_status = "idle"
+                        st.warning("Agent stop requested")
+                    except Exception:
+                        pass
+                    st.rerun()
+            
+            st.caption("⏱️ Page auto-refreshes every 3 seconds...")
+            
+            # Auto-rerun after delay for live updates
+            import time
+            time.sleep(3)
+            st.rerun()
+            
+            st.markdown("<hr>", unsafe_allow_html=True)
+        
+        # Show results after run
+        if st.session_state.get("agent_status") == "done" and st.session_state.agent_report:
+            report = st.session_state.agent_report
+            
+            # Save analysis to database (only once)
+            if "analysis_saved" not in st.session_state:
+                try:
+                    from database.analysis_repository import analysis_repository
+                    
+                    # Get user ID if authenticated
+                    user_id = None
+                    if st.session_state.get("auth_user"):
+                        user_id = st.session_state.auth_user.id
+                    
+                    if user_id:
+                        # Extract dataset info
+                        metadata = report.get("metadata", {})
+                        dataset_name = metadata.get("source", "").split("/")[-1] if metadata.get("source") else None
+                        
+                        # Create title from instruction
+                        instruction = st.session_state.get("agent_instruction", "Data Analysis")
+                        title = instruction[:100] if len(instruction) > 100 else instruction
+                        
+                        # Save report
+                        analysis_repo = analysis_repository
+                        saved_report = analysis_repo.create_report(
+                            user_id=user_id,
+                            session_id=st.session_state.session_id,
+                            title=title,
+                            instruction=instruction,
+                            dataset_name=dataset_name,
+                            dataset_rows=metadata.get("rows"),
+                            dataset_cols=metadata.get("cols"),
+                            mode=st.session_state.get("agent_selected_mode", "Analysis Only"),
+                            report_data=report,
+                            status="completed",
+                        )
+                        st.session_state.analysis_saved = True
+                        st.session_state.analysis_report_id = saved_report.id
+                        logger.info(f"Analysis report {saved_report.id} saved to database")
+                except Exception as e:
+                    logger.error(f"Failed to save analysis to database: {e}")
+            
+            # Result tabs
+            sub_tabs = st.tabs(["📋 Summary", "📈 Charts", "🤖 ML Results", "📓 Notebook", "📄 Raw JSON"])
+            
+            with sub_tabs[0]:
+                # Summary tab
+                st.markdown("#### 📋 Analysis Summary")
+                
+                # Metric cards
+                metadata = report.get("metadata", {})
+                m_rows = metadata.get("rows", report.get("rows", "N/A"))
+                m_cols = metadata.get("cols", report.get("columns", "N/A"))
+                m_charts = len(report.get("charts", []))
+                ml_results = report.get("ml_results", {})
+                m_model = ml_results.get("metrics", {}).get("r2_score") or ml_results.get("metrics", {}).get("accuracy") or "N/A"
+                
+                mc1, mc2, mc3, mc4 = st.columns(4)
+                mc1.metric("📊 Rows", m_rows)
+                mc2.metric("📋 Columns", m_cols)
+                mc3.metric("📈 Charts", m_charts)
+                mc4.metric("🎯 Model Score", f"{m_model:.3f}" if isinstance(m_model, float) else m_model)
+                
+                st.markdown("---")
+                
+                # Insights section
+                insights = report.get("insights", {})
+                
+                # Executive summary
+                exec_summary = insights.get("executive_summary", report.get("executive_summary", "No summary available"))
+                if exec_summary and exec_summary != "No summary available":
+                    st.markdown("### 📝 Executive Summary")
+                    st.info(exec_summary)
+                
+                # Two columns for findings and recommendations
+                col_findings, col_recs = st.columns(2)
+                
+                with col_findings:
+                    # Key findings
+                    findings = insights.get("key_findings", report.get("key_findings", []))
+                    if findings:
+                        st.markdown("### 🔍 Key Findings")
+                        for finding in findings:
+                            st.markdown(f"✓ {finding}")
+                
+                with col_recs:
+                    # Recommendations
+                    recommendations = insights.get("recommendations", report.get("recommendations", []))
+                    if recommendations:
+                        st.markdown("### 💡 Recommendations")
+                        for rec in recommendations:
+                            st.markdown(f"→ {rec}")
+                
+                # Anomalies and risks
+                anomalies = insights.get("anomalies_or_risks", report.get("anomalies_or_risks", []))
+                if anomalies:
+                    with st.expander("⚠️ Anomalies & Risks", expanded=True):
+                        for anomaly in anomalies:
+                            st.warning(anomaly)
+                
+                # Data quality note
+                quality_note = insights.get("data_quality_note", "")
+                if quality_note:
+                    with st.expander("📊 Data Quality Note"):
+                        st.markdown(quality_note)
+                
+                # Chart interpretations
+                chart_interps = insights.get("chart_interpretations", insights.get("chart_interpretation", {}))
+                if chart_interps:
+                    with st.expander("📈 Chart Interpretations"):
+                        for chart_title, interp in chart_interps.items():
+                            st.markdown(f"**{chart_title}:** {interp}")
+                
+                st.markdown("---")
+                
+                # Preprocessing steps
+                with st.expander("🔧 Preprocessing Steps"):
+                    steps = report.get("preprocessing", report.get("preprocessing", []))
+                    if steps:
+                        for i, step in enumerate(steps, 1):
+                            st.markdown(f"{i}. {step}")
+                    else:
+                        st.info("No preprocessing steps recorded")
+                
+                # Errors and warnings
+                errors = report.get("errors", [])
+                warnings_list = report.get("warnings", [])
+                
+                if errors:
+                    with st.expander("❌ Errors During Processing"):
+                        for error in errors:
+                            st.error(error)
+                
+                if warnings_list:
+                    with st.expander("⚡ Warnings"):
+                        for warning in warnings_list:
+                            st.warning(warning)
+            
+            with sub_tabs[1]:
+                # Charts tab
+                st.markdown("#### 📈 Generated Charts")
+                charts = report.get("charts", [])
+                if charts:
+                    st.success(f"✅ {len(charts)} chart(s) generated successfully")
+                    
+                    for i, chart in enumerate(charts):
+                        html_path = chart.get("html_path")
+                        png_path = chart.get("png_path")
+                        title = chart.get("title", f"Chart {i+1}")
+                        chart_type = chart.get("type", "unknown")
+                        
+                        with st.container():
+                            st.markdown(f"**{title}** (*{chart_type}*)")
+                            
+                            if html_path and os.path.exists(html_path):
+                                try:
+                                    with open(html_path, "r", encoding="utf-8") as f:
+                                        html_content = f.read()
+                                    st.components.v1.html(html_content, height=500)
+                                    
+                                    # Interpretation
+                                    interp = chart.get("interpretation", "")
+                                    if interp:
+                                        st.markdown(f"💡 *{interp}*")
+                                    
+                                    # Download buttons row
+                                    dl_col1, dl_col2 = st.columns([1, 3])
+                                    with dl_col1:
+                                        # Download PNG
+                                        if png_path and os.path.exists(png_path):
+                                            with open(png_path, "rb") as f:
+                                                png_bytes = f.read()
+                                            st.download_button(
+                                                label="⬇️ PNG",
+                                                data=png_bytes,
+                                                file_name=os.path.basename(png_path),
+                                                mime="image/png",
+                                                key=f"dl_png_{i}"
+                                            )
+                                    with dl_col2:
+                                        # Download HTML
+                                        if html_path and os.path.exists(html_path):
+                                            with open(html_path, "rb") as f:
+                                                html_bytes = f.read()
+                                            st.download_button(
+                                                label="⬇️ HTML (Interactive)",
+                                                data=html_bytes,
+                                                file_name=os.path.basename(html_path),
+                                                mime="text/html",
+                                                key=f"dl_html_{i}"
+                                            )
+                                    st.markdown("---")
+                                except Exception as e:
+                                    st.error(f"❌ Error loading chart '{title}': {e}")
+                            else:
+                                st.warning(f"⚠️ Chart file not found: {html_path}")
+                else:
+                    st.info("ℹ️ No charts were generated for this analysis")
+            
+            with sub_tabs[2]:
+                # ML Results tab
+                st.markdown("#### 🤖 ML Results")
+                ml_results = report.get("ml_results", {})
+                
+                if ml_results:
+                    metrics = ml_results.get("metrics", {})
+                    task_type = ml_results.get("task_type", "N/A")
+                    target_col = ml_results.get("target_col", "N/A")
+                    feat_cols = ml_results.get("feature_cols", [])
+                    
+                    st.markdown(f"**Task:** {task_type} | **Target:** {target_col}")
+                    
+                    # Metrics cards
+                    if task_type == "regression":
+                        rmse = metrics.get("rmse", "N/A")
+                        r2 = metrics.get("r2_score", "N/A")
+                        mm1, mm2 = st.columns(2)
+                        mm1.metric("RMSE", rmse)
+                        mm2.metric("R² Score", r2)
+                    else:
+                        acc = metrics.get("accuracy", "N/A")
+                        st.metric("Accuracy", acc)
+                    
+                    # SHAP chart
+                    shap_importance = ml_results.get("shap_importance", {})
+                    if shap_importance:
+                        st.markdown("##### SHAP Feature Importance")
+                        shap_df = pd.DataFrame(list(shap_importance.items()), columns=["Feature", "Importance"])
+                        shap_df = shap_df.sort_values("Importance", ascending=True)
+                        st.bar_chart(shap_df.set_index("Feature"))
+                    
+                    # Feature importance
+                    feat_imp = ml_results.get("feature_importance", {})
+                    if feat_imp:
+                        st.markdown("##### Feature Importance")
+                        fi_df = pd.DataFrame(list(feat_imp.items()), columns=["Feature", "Importance"])
+                        fi_df = fi_df.sort_values("Importance", ascending=False).head(10)
+                        st.dataframe(fi_df, hide_index=True)
+                    
+                    # Train/test split info
+                    n_train = ml_results.get("n_train", "N/A")
+                    n_test = ml_results.get("n_test", "N/A")
+                    st.markdown(f"**Train size:** {n_train} | **Test size:** {n_test}")
+                else:
+                    st.info("No ML results - run with Analysis + ML Model mode")
+            
+            with sub_tabs[3]:
+                # Notebook tab
+                st.markdown("#### 📓 Generated Notebook")
+                nb_path = report.get("notebook_path")
+                
+                if nb_path and os.path.exists(nb_path):
+                    st.success(f"✅ Notebook generated: `{os.path.basename(nb_path)}`")
+                    
+                    # Get file size
+                    file_size = os.path.getsize(nb_path) / 1024  # KB
+                    st.caption(f"📁 File size: {file_size:.1f} KB")
+                    
+                    # Download button with better styling
+                    with open(nb_path, "rb") as f:
+                        nb_bytes = f.read()
+                    
+                    col_dl, col_open = st.columns([1, 2])
+                    with col_dl:
+                        st.download_button(
+                            label="⬇️ Download .ipynb",
+                            data=nb_bytes,
+                            file_name=os.path.basename(nb_path),
+                            mime="application/x-ipynb+json",
+                            key="dl_notebook_main"
+                        )
+                    with col_open:
+                        st.markdown("💡 *Open in Jupyter Notebook or Google Colab*")
+                    
+                    # Preview notebook cells
+                    st.markdown("---")
+                    st.markdown("**📋 Notebook Preview (First 10 cells):**")
+                    
+                    try:
+                        import nbformat
+                        nb = nbformat.read(os.path.abspath(nb_path), as_version=4)
+                        
+                        for i, cell in enumerate(nb.cells[:10]):
+                            with st.container():
+                                if cell.cell_type == "code":
+                                    with st.expander(f"🐍 Code Cell {i+1}", expanded=i < 3):
+                                        st.code(cell.source, language="python")
+                                        # Show output if available
+                                        if cell.outputs:
+                                            for output in cell.outputs[:2]:  # Limit outputs
+                                                if output.output_type == "stream":
+                                                    st.text(output.text[:500])  # Limit text
+                                                elif output.output_type == "execute_result":
+                                                    if hasattr(output, 'data') and 'text/plain' in output.data:
+                                                        st.text(output.data['text/plain'][:500])
+                                else:
+                                    with st.expander(f"📝 Markdown Cell {i+1}", expanded=i < 3):
+                                        st.markdown(cell.source)
+                                st.markdown("---")
+                        
+                        if len(nb.cells) > 10:
+                            st.info(f"📌 ... and {len(nb.cells) - 10} more cells. Download the notebook to see all.")
+                            
+                    except ImportError:
+                        st.warning("⚠️ Install `nbformat` to preview notebook: `pip install nbformat`")
+                    except Exception as e:
+                        st.error(f"❌ Could not preview notebook: {e}")
+                else:
+                    st.info("ℹ️ No notebook generated - run with 'Analysis + ML + Notebook' mode to generate one")
+            
+            with sub_tabs[4]:
+                # Raw JSON tab
+                st.markdown("#### 📄 Raw JSON")
+                st.json(report)
+        
+        # Error display
+        if st.session_state.get("agent_status") == "error":
+            error_msg = st.session_state.get("agent_error", "Unknown error")
+            st.error(f"❌ Agent failed: {error_msg}")
+            
+            # Show traceback in expander
+            with st.expander("📋 Full Error Details"):
+                st.code(error_msg)
+
+

@@ -34,16 +34,31 @@ class SessionManager:
         device_info: Optional[dict] = None,
     ) -> str:
         """Create a new session. Returns the JWT token string."""
+        import uuid
+        
         expires_at = _utcnow() + timedelta(days=_SESSION_DAYS)
-
+        
+        # Add unique jitter to prevent token collisions
+        unique_id = str(uuid.uuid4())[:8]
         payload = {
             "user_id":  user_id,
             "exp":      int(expires_at.timestamp()),
             "iat":      int(_utcnow().timestamp()),
+            "jti":      unique_id,  # JWT ID for uniqueness
         }
         token = jwt.encode(payload, _SECRET_KEY, algorithm=_ALGORITHM)
 
         with get_db() as db:
+            # Deactivate any existing active sessions for this user
+            existing_sessions = (
+                db.query(DBSession)
+                .filter(DBSession.user_id == user_id, DBSession.is_active == True)
+                .all()
+            )
+            for sess in existing_sessions:
+                sess.is_active = False
+            
+            # Create new session
             sess = DBSession(
                 user_id=user_id,
                 session_token=token,

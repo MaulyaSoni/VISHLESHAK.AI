@@ -388,7 +388,7 @@ def generate_pdf_report(state: dict, mode: str = "auto") -> Optional[str]:
 
     if mode == "auto":
         charts = state.get("charts", [])
-        if charts:
+        if charts and isinstance(charts, list):
             story.append(PageBreak())
             story += _node_charts_page(state, styles, dc)
     else:
@@ -396,7 +396,7 @@ def generate_pdf_report(state: dict, mode: str = "auto") -> Optional[str]:
         story += _node_stats_page(state, styles, dc)
 
         charts = state.get("charts", [])
-        if charts:
+        if charts and isinstance(charts, list):
             story.append(PageBreak())
             story += _node_charts_page(state, styles, dc)
 

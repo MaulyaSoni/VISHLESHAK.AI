@@ -213,6 +213,18 @@ def data_agent(state: VishleshakState) -> VishleshakState:
     state["agent_trace"].append({"node": "data_agent"})
     state["next_agent"] = "insight_agent"
     
+    # Generate proactive flags for pattern analysis
+    try:
+        from agentic_core.proactive_engine import generate_proactive_flags
+        df = state.get("dataset")
+        if df is not None:
+            flags = generate_proactive_flags(df)
+            state["proactive_flags"] = flags
+            logger.info(f"Generated {len(flags)} proactive flags")
+    except Exception as e:
+        logger.warning(f"Proactive flag generation failed: {e}")
+        state["proactive_flags"] = []
+    
     return state
 
 

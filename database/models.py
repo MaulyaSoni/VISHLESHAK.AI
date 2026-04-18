@@ -173,3 +173,41 @@ class DatasetMemory(Base):
         Index("idx_dataset_mem_user", "user_id"),
         Index("idx_dataset_mem_hash", "dataset_hash"),
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+class AnalysisReport(Base):
+    """Stores Data Agent analysis reports for history and retrieval."""
+    __tablename__ = "analysis_reports"
+
+    id              = Column(Integer, primary_key=True, autoincrement=True)
+    user_id         = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    session_id      = Column(String(100), nullable=False, index=True)
+    title           = Column(String(300), default="Data Analysis")
+    instruction     = Column(Text)  # User's original instruction
+    dataset_name    = Column(String(200))
+    dataset_rows    = Column(Integer)
+    dataset_cols    = Column(Integer)
+    mode            = Column(String(50))  # Analysis Only, Analysis + ML, etc.
+    
+    # Report content stored as JSON
+    executive_summary = Column(Text)
+    key_findings      = Column(Text)  # JSON array
+    recommendations   = Column(Text)  # JSON array
+    anomalies         = Column(Text)  # JSON array
+    charts_info       = Column(Text)  # JSON array of chart metadata
+    ml_metrics        = Column(Text)  # JSON object
+    notebook_path     = Column(String(500))
+    full_report       = Column(Text)  # Complete report JSON
+    
+    # Status and timestamps
+    status          = Column(String(20), default="completed")  # completed, error, running
+    error_message   = Column(Text)
+    created_at      = Column(DateTime, default=_utcnow)
+    updated_at      = Column(DateTime, default=_utcnow, onupdate=_utcnow)
+
+    __table_args__ = (
+        Index("idx_analysis_user", "user_id"),
+        Index("idx_analysis_session", "session_id"),
+        Index("idx_analysis_created", "created_at"),
+    )

@@ -1,0 +1,569 @@
+{
+  "metadata": {
+    "instruction": "data/uploads/HELIOS_24Month_Forecast_Output.csv - analyze and find trends Train a machine learning model and generate a jupyter notebook.",
+    "source": "data/uploads/HELIOS_24Month_Forecast_Output.csv",
+    "rows": 120,
+    "cols": 44,
+    "timestamp": "2026-04-18T20:04:28.163550",
+    "steps_taken": [
+      "understand_intent \u2192 analysis_ml_notebook | local_file",
+      "load_csv \u2192 120r \u00d7 44c",
+      "preprocess \u2192 1 steps",
+      "run_eda \u2192 4 sections",
+      "plan_charts \u2192 3",
+      "generate_charts \u2192 3 saved",
+      "detect_target \u2192 'Forecast_Peak_Load_MW' (regression)",
+      "train_model \u2192 regression metrics={'rmse': 139.5523, 'r2_score': 0.9942, 'mae': 80.1731}"
+    ],
+    "intent": {
+      "task_type": "analysis_ml_notebook",
+      "data_source_type": "local_file",
+      "data_source_value": "data/uploads/HELIOS_24Month_Forecast_Output.csv",
+      "target_column": null,
+      "focus_columns": [],
+      "domain": "general",
+      "goals": [
+        "find trends",
+        "train a machine learning model"
+      ],
+      "needs_download": false,
+      "summary": "Analyze the given CSV file to find trends and train a machine learning model, then generate a Jupyter notebook."
+    }
+  },
+  "preprocessing": [
+    "'Date' \u2192 datetime."
+  ],
+  "eda": {
+    "numeric_summary": {
+      "Year": {
+        "count": 120.0,
+        "mean": 2025.5,
+        "std": 0.502,
+        "min": 2025.0,
+        "25%": 2025.0,
+        "50%": 2025.5,
+        "75%": 2026.0,
+        "max": 2026.0
+      },
+      "Month": {
+        "count": 120.0,
+        "mean": 6.5,
+        "std": 3.467,
+        "min": 1.0,
+        "25%": 3.75,
+        "50%": 6.5,
+        "75%": 9.25,
+        "max": 12.0
+      },
+      "Forecast_Peak_Load_MW": {
+        "count": 120.0,
+        "mean": 10358.255,
+        "std": 1727.342,
+        "min": 6702.54,
+        "25%": 8978.785,
+        "50%": 10132.27,
+        "75%": 11729.47,
+        "max": 14562.0
+      },
+      "Forecast_Base_Load_MW": {
+        "count": 120.0,
+        "mean": 7211.703,
+        "std": 1208.445,
+        "min": 4654.82,
+        "25%": 6245.01,
+        "50%": 7053.51,
+        "75%": 8173.675,
+        "max": 10152.2
+      },
+      "EV_Load_Additive_MW": {
+        "count": 120.0,
+        "mean": 390.76,
+        "std": 21.309,
+        "min": 369.54,
+        "25%": 369.54,
+        "50%": 390.76,
+        "75%": 411.98,
+        "max": 411.98
+      },
+      "Seasonal_Index_Applied": {
+        "count": 120.0,
+        "mean": 1.0,
+        "std": 0.08,
+        "min": 0.839,
+        "25%": 0.947,
+        "50%": 0.998,
+        "75%": 1.04,
+        "max": 1.123
+      },
+      "CAGR_Applied_Pct": {
+        "count": 120.0,
+        "mean": 11.477,
+        "std": 0.022,
+        "min": 11.451,
+        "25%": 11.463,
+        "50%": 11.474,
+        "75%": 11.48,
+        "max": 11.516
+      },
+      "Industrial_Share_Pct": {
+        "count": 120.0,
+        "mean": 42.48,
+        "std": 0.04,
+        "min": 42.4,
+        "25%": 42.5,
+        "50%": 42.5,
+        "75%": 42.5,
+        "max": 42.5
+      },
+      "Residential_Share_Pct": {
+        "count": 120.0,
+        "mean": 50.0,
+        "std": 0.254,
+        "min": 49.8,
+        "25%": 49.8,
+        "50%": 49.8,
+        "75%": 50.2,
+        "max": 50.4
+      },
+      "YoY_Growth_Pct": {
+        "count": 120.0,
+        "mean": 10.712,
+        "std": 0.305,
+        "min": 10.01,
+        "25%": 10.458,
+        "50%": 10.74,
+        "75%": 10.99,
+        "max": 11.12
+      },
+      "Installed_Capacity_MW": {
+        "count": 120.0,
+        "mean": 5700.0,
+        "std": 0.0,
+        "min": 5700.0,
+        "25%": 5700.0,
+        "50%": 5700.0,
+        "75%": 5700.0,
+        "max": 5700.0
+      },
+      "Capacity_Gap_MW": {
+        "count": 120.0,
+        "mean": 4658.255,
+        "std": 1727.342,
+        "min": 1002.54,
+        "25%": 3278.785,
+        "50%": 4432.27,
+        "75%": 6029.47,
+        "max": 8862.0
+      },
+      "Peak_Solar_MW": {
+        "count": 120.0,
+        "mean": 371.25,
+        "std": 0.0,
+        "min": 371.25,
+        "25%": 371.25,
+        "50%": 371.25,
+        "75%": 371.25,
+        "max": 371.25
+      },
+      "Peak_Wind_MW": {
+        "count": 120.0,
+        "mean": 411.6,
+        "std": 0.0,
+        "min": 411.6,
+        "25%": 411.6,
+        "50%": 411.6,
+        "75%": 411.6,
+        "max": 411.6
+      },
+      "Peak_Coal_MW": {
+        "count": 120.0,
+        "mean": 1900.0,
+        "std": 0.0,
+        "min": 1900.0,
+        "25%": 1900.0,
+        "50%": 1900.0,
+        "75%": 1900.0,
+        "max": 1900.0
+      },
+      "Peak_Gas_MW": {
+        "count": 120.0,
+        "mean": 970.0,
+        "std": 0.0,
+        "min": 970.0,
+        "25%": 970.0,
+        "50%": 970.0,
+        "75%": 970.0,
+        "max": 970.0
+      },
+      "Peak_Total_Gen_MW": {
+        "count": 120.0,
+        "mean": 3652.85,
+        "std": 0.0,
+        "min": 3652.85,
+        "25%": 3652.85,
+        "50%": 3652.85,
+        "75%": 3652.85,
+        "max": 3652.85
+      },
+      "Peak_Grid_Import_MW": {
+        "count": 120.0,
+        "mean": 6705.405,
+        "std": 1727.342,
+        "min": 3049.69,
+        "25%": 5325.935,
+        "50%": 6479.42,
+        "75%": 8076.62,
+        "max": 10909.15
+      },
+      "Peak_Renewable_Share_Pct": {
+        "count": 120.0,
+        "mean": 21.43,
+        "std": 0.0,
+        "min": 21.43,
+        "25%": 21.43,
+        "50%": 21.43,
+        "75%": 21.43,
+        "max": 21.43
+      },
+      "Peak_Emission_Intensity": {
+        "count": 120.0,
+        "mean": 0.601,
+        "std": 0.0,
+        "min": 0.601,
+        "25%": 0.601,
+        "50%": 0.601,
+        "75%": 0.601,
+        "max": 0.601
+      },
+      "Peak_Dispatch_Cost_Day_Rs": {
+        "count": 120.0,
+        "mean": 206849880.0,
+        "std": 0.0,
+        "min": 206849880.0,
+        "25%": 206849880.0,
+        "50%": 206849880.0,
+        "75%": 206849880.0,
+        "max": 206849880.0
+      },
+      "Peak_Emission_Day_tCO2": {
+        "count": 120.0,
+        "mean": 52680.0,
+        "std": 0.0,
+        "min": 52680.0,
+        "25%": 52680.0,
+        "50%": 52680.0,
+        "75%": 52680.0,
+        "max": 52680.0
+      },
+      "Base_Renewable_Share_Pct": {
+        "count": 120.0,
+        "mean": 21.43,
+        "std": 0.0,
+        "min": 21.43,
+        "25%": 21.43,
+        "50%": 21.43,
+        "75%": 21.43,
+        "max": 21.43
+      },
+      "Base_Emission_Intensity": {
+        "count": 120.0,
+        "mean": 0.601,
+        "std": 0.0,
+        "min": 0.601,
+        "25%": 0.601,
+        "50%": 0.601,
+        "75%": 0.601,
+        "max": 0.601
+      },
+      "Base_Dispatch_Cost_Day_Rs": {
+        "count": 120.0,
+        "mean": 206849880.0,
+        "std": 0.0,
+        "min": 206849880.0,
+        "25%": 206849880.0,
+        "50%": 206849880.0,
+        "75%": 206849880.0,
+        "max": 206849880.0
+      },
+      "Base_Emission_Day_tCO2": {
+        "count": 120.0,
+        "mean": 52680.0,
+        "std": 0.0,
+        "min": 52680.0,
+        "25%": 52680.0,
+        "50%": 52680.0,
+        "75%": 52680.0,
+        "max": 52680.0
+      },
+      "Excess_Emission_tCO2": {
+        "count": 120.0,
+        "mean": 0.0,
+        "std": 0.0,
+        "min": 0.0,
+        "25%": 0.0,
+        "50%": 0.0,
+        "75%": 0.0,
+        "max": 0.0
+      },
+      "RPO_Gap_Pct": {
+        "count": 120.0,
+        "mean": 8.57,
+        "std": 0.0,
+        "min": 8.57,
+        "25%": 8.57,
+        "50%": 8.57,
+        "75%": 8.57,
+        "max": 8.57
+      },
+      "Estimated_Penalty_Rs": {
+        "count": 120.0,
+        "mean": 0.0,
+        "std": 0.0,
+        "min": 0.0,
+        "25%": 0.0,
+        "50%": 0.0,
+        "75%": 0.0,
+        "max": 0.0
+      },
+      "Revenue_M": {
+        "count": 120.0,
+        "mean": 153.363,
+        "std": 8.385,
+        "min": 144.21,
+        "25%": 144.79,
+        "50%": 153.315,
+        "75%": 161.37,
+        "max": 162.66
+      },
+      "Fuel_Cost_M": {
+        "count": 120.0,
+        "mean": 78.542,
+        "std": 3.091,
+        "min": 75.1,
+        "25%": 75.37,
+        "50%": 78.81,
+        "75%": 81.43,
+        "max": 82.61
+      },
+      "Carbon_Cost_M": {
+        "count": 120.0,
+        "mean": 9.008,
+        "std": 0.108,
+        "min": 8.92,
+        "25%": 8.92,
+        "50%": 8.95,
+        "75%": 9.05,
+        "max": 9.2
+      },
+      "EBITDA_M": {
+        "count": 120.0,
+        "mean": 65.815,
+        "std": 5.388,
+        "min": 59.36,
+        "25%": 60.36,
+        "50%": 65.66,
+        "75%": 70.9,
+        "max": 72.22
+      },
+      "EBITDA_Margin_Pct": {
+        "count": 120.0,
+        "mean": 42.85,
+        "std": 1.215,
+        "min": 41.0,
+        "25%": 41.7,
+        "50%": 42.75,
+        "75%": 44.0,
+        "max": 44.4
+      },
+      "DSCR_Recomputed": {
+        "count": 120.0,
+        "mean": 283.27,
+        "std": 52.615,
+        "min": 215.8,
+        "25%": 242.1,
+        "50%": 274.1,
+        "75%": 326.7,
+        "max": 395.5
+      }
+    },
+    "categorical_counts": {
+      "Month_Name": {
+        "Jan": 10,
+        "Feb": 10,
+        "Mar": 10,
+        "Apr": 10,
+        "May": 10
+      },
+      "State": {
+        "Gujarat": 24,
+        "Karnataka": 24,
+        "Maharashtra": 24,
+        "Rajasthan": 24,
+        "Tamil Nadu": 24
+      },
+      "Model_Type": {
+        "Three-Factor Structural Decomposition": 120
+      },
+      "Assumption_CAGR": {
+        "Observed 2020-2024 state CAGR, stage-2 updatable": 120
+      },
+      "Assumption_Seasonal": {
+        "Monthly index derived from 5-year historical data": 120
+      },
+      "Assumption_EV": {
+        "EV additive at 11.48% CAGR from 331MW (2024 base)": 120
+      },
+      "Emission_Status": {
+        "COMPLIANT": 120
+      },
+      "RPO_Status": {
+        "NON-COMPLIANT": 120
+      }
+    },
+    "top_correlations": {
+      "('Capacity_Gap_MW', 'Peak_Grid_Import_MW')": 1.0,
+      "('Forecast_Peak_Load_MW', 'Peak_Grid_Import_MW')": 1.0,
+      "('Forecast_Peak_Load_MW', 'Capacity_Gap_MW')": 1.0,
+      "('Year', 'EV_Load_Additive_MW')": 1.0,
+      "('Forecast_Peak_Load_MW', 'Forecast_Base_Load_MW')": 1.0,
+      "('Forecast_Base_Load_MW', 'Capacity_Gap_MW')": 1.0,
+      "('Forecast_Base_Load_MW', 'Peak_Grid_Import_MW')": 1.0,
+      "('Year', 'Revenue_M')": 0.997
+    },
+    "shape": {
+      "rows": 120,
+      "cols": 44
+    }
+  },
+  "charts": [
+    {
+      "title": "Monthly Forecast Peak Load",
+      "type": "unknown",
+      "html_path": "chart_1_monthly_forecast_peak_load.html",
+      "png_path": "chart_1_monthly_forecast_peak_load.png"
+    },
+    {
+      "title": "Monthly Forecast Base Load",
+      "type": "unknown",
+      "html_path": "chart_2_monthly_forecast_base_load.html",
+      "png_path": "chart_2_monthly_forecast_base_load.png"
+    },
+    {
+      "title": "EV Load Additive vs Forecast Peak Load",
+      "type": "unknown",
+      "html_path": "chart_3_ev_load_additive_vs_forecast_peak_l.html",
+      "png_path": "chart_3_ev_load_additive_vs_forecast_peak_l.png"
+    }
+  ],
+  "insights": {},
+  "ml_results": {
+    "target_info": {
+      "target_col": "Forecast_Peak_Load_MW",
+      "task_type": "regression",
+      "feature_cols": [
+        "Year",
+        "Month",
+        "Month_Name",
+        "State",
+        "Forecast_Base_Load_MW",
+        "EV_Load_Additive_MW",
+        "Seasonal_Index_Applied",
+        "CAGR_Applied_Pct",
+        "Industrial_Share_Pct",
+        "Residential_Share_Pct",
+        "YoY_Growth_Pct",
+        "Installed_Capacity_MW",
+        "Capacity_Gap_MW",
+        "Peak_Solar_MW",
+        "Peak_Wind_MW",
+        "Peak_Coal_MW",
+        "Peak_Gas_MW",
+        "Peak_Total_Gen_MW",
+        "Peak_Grid_Import_MW"
+      ],
+      "reasoning": "The target column 'Forecast_Peak_Load_MW' is a continuous variable, indicating a regression task. The feature columns are a mix of categorical and numerical variables that can potentially influence the peak load forecast, such as time-related variables, load-related variables, and generation-related variables."
+    },
+    "task_type": "regression",
+    "target_col": "Forecast_Peak_Load_MW",
+    "feature_cols": [
+      "Year",
+      "Month",
+      "Month_Name",
+      "State",
+      "Forecast_Base_Load_MW",
+      "EV_Load_Additive_MW",
+      "Seasonal_Index_Applied",
+      "CAGR_Applied_Pct",
+      "Industrial_Share_Pct",
+      "Residential_Share_Pct",
+      "YoY_Growth_Pct",
+      "Installed_Capacity_MW",
+      "Capacity_Gap_MW",
+      "Peak_Solar_MW",
+      "Peak_Wind_MW",
+      "Peak_Coal_MW",
+      "Peak_Gas_MW",
+      "Peak_Total_Gen_MW",
+      "Peak_Grid_Import_MW"
+    ],
+    "metrics": {
+      "rmse": 139.5523,
+      "r2_score": 0.9942,
+      "mae": 80.1731
+    },
+    "feature_importance": {
+      "Forecast_Base_Load_MW": 0.9976,
+      "Capacity_Gap_MW": 0.0022,
+      "Month": 0.0002,
+      "Year": 0.0,
+      "Month_Name": 0.0,
+      "State": 0.0,
+      "EV_Load_Additive_MW": 0.0,
+      "Seasonal_Index_Applied": 0.0,
+      "CAGR_Applied_Pct": 0.0,
+      "Industrial_Share_Pct": 0.0
+    },
+    "shap_importance": {
+      "Forecast_Base_Load_MW": 0.9976,
+      "Capacity_Gap_MW": 0.0022,
+      "Month": 0.0002,
+      "Year": 0.0,
+      "Month_Name": 0.0,
+      "State": 0.0,
+      "EV_Load_Additive_MW": 0.0,
+      "Seasonal_Index_Applied": 0.0,
+      "CAGR_Applied_Pct": 0.0,
+      "Industrial_Share_Pct": 0.0
+    },
+    "n_train": 96,
+    "n_test": 24,
+    "encoders": {
+      "Month_Name": [
+        "Apr",
+        "Aug",
+        "Dec",
+        "Feb",
+        "Jan",
+        "Jul",
+        "Jun",
+        "Mar",
+        "May",
+        "Nov",
+        "Oct",
+        "Sep"
+      ],
+      "State": [
+        "Gujarat",
+        "Karnataka",
+        "Maharashtra",
+        "Rajasthan",
+        "Tamil Nadu"
+      ]
+    }
+  },
+  "notebook_path": "",
+  "warnings": [
+    "SHAP skipped: could not convert string to float: '[1.0359628E4]'"
+  ],
+  "errors": []
+}
