@@ -4,12 +4,21 @@ Integrated with Next-Level RAG Intelligence Chatbot
 Version: 1.0.0
 """
 
+# Ensure legacy app modules are importable (config/, utils/, tools/, etc.)
+import sys
+from pathlib import Path
+_backend_dir = Path(__file__).resolve().parent
+_app_modules_dir = _backend_dir / "app_modules"
+if _app_modules_dir.exists():
+    sys.path.insert(0, str(_app_modules_dir))
+
 # ── load .env FIRST before anything else ────────────────────────────────────
 import os
 from pathlib import Path
 try:
     from dotenv import load_dotenv
-    _project_root = Path(__file__).resolve().parent
+    # Repo root (where .env typically lives)
+    _project_root = Path(__file__).resolve().parent.parent
     load_dotenv(_project_root / ".env", override=True)
     
     # Langsmith explicit observability check
@@ -56,19 +65,6 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 logger = logging.getLogger(__name__)
-
-# ── add project root to path for imports ─────────────────────────────────────
-import sys
-_project_root = Path(__file__).resolve().parent
-if str(_project_root) not in sys.path:
-    sys.path.insert(0, str(_project_root))
-# Add backend and app_modules directories for migrated modules
-_backend_dir = _project_root / "backend"
-if str(_backend_dir) not in sys.path:
-    sys.path.insert(0, str(_backend_dir))
-_app_modules_dir = _backend_dir / "app_modules"
-if str(_app_modules_dir) not in sys.path:
-    sys.path.insert(0, str(_app_modules_dir))
 
 # ── project imports ───────────────────────────────────────────────────────────
 from config import settings
