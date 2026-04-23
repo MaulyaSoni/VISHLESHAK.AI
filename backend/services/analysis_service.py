@@ -64,13 +64,14 @@ class AnalysisService:
             # Import data agent here to avoid startup overhead
             try:
                 from backend.scripts.data_agent_3 import run_agent
+                from backend.services.file_service import file_service
                 
-                # Build instruction
-                instruction = f"{request.dataset_hash} - {request.query}"
-                if request.mode == "analysis_ml":
-                    instruction += " Train a machine learning model."
-                elif request.mode == "analysis_ml_notebook":
-                    instruction += " Train a machine learning model and generate a jupyter notebook."
+                # Load dataset and build instruction
+                df = file_service.load_dataframe(request.dataset_hash)
+                if df is None:
+                    raise ValueError(f"Dataset not found: {request.dataset_hash}")
+                
+                instruction = f"Analyze this dataset: {request.query}"
                 
                 # Run agent
                 result = run_agent(instruction, force_task_type=request.mode)

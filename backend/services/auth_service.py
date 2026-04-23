@@ -1,7 +1,6 @@
 """
-Authentication service
+Authentication service - Uses AuthManager (same as Streamlit app.py)
 """
-import uuid
 from typing import Optional, Tuple
 from backend.models.user import User
 from backend.core.logger import get_logger
@@ -10,63 +9,42 @@ logger = get_logger(__name__)
 
 
 class AuthService:
-    """Authentication service"""
+    """Authentication service wrapper around AuthManager"""
     
     def __init__(self):
-        self._users = {}  # In-memory store for development
-        self._tokens = {}
-        
-        # Create default user for development
-        default_user = User(
-            id=1,
-            email="admin@vishleshak.ai",
-            username="admin",
-            domain="general"
-        )
-        self._users[1] = default_user
-        self._users["admin@vishleshak.ai"] = default_user
+        # Import here to avoid circular imports
+        from auth.auth_manager import AuthManager
+        self.auth_manager = AuthManager()
     
     def authenticate(self, email: str, password: str) -> Optional[Tuple[User, str]]:
         """
-        Authenticate user and return user + token
-        For development, accepts any password for known users
+        Authenticate user using AuthManager (same as Streamlit)
+        Returns (User, token) or None on failure
         """
-        user = self._users.get(email)
-        if user:
-            token = str(uuid.uuid4())
-            self._tokens[token] = user.id
+        try:
+            user, token = self.auth_manager.login_user(email, password)
             logger.info(f"User authenticated: {email}")
             return user, token
-        
-        # Auto-create user for development
-        user_id = len(self._users) + 1
-        user = User(
-            id=user_id,
-            email=email,
-            username=email.split('@')[0],
-            domain="general"
-        )
-        self._users[user_id] = user
-        self._users[email] = user
-        
-        token = str(uuid.uuid4())
-        self._tokens[token] = user_id
-        logger.info(f"New user created: {email}")
-        return user, token
+        except Exception as e:
+            logger.warning(f"Authentication failed for {email}: {e}")
+            return None
     
     def get_user_by_token(self, token: str) -> Optional[User]:
-        """Get user by token"""
-        user_id = self._tokens.get(token)
-        if user_id:
-            return self._users.get(user_id)
-        return None
+        """Get user by token using AuthManager"""
+        try:
+            user = self.auth_manager.verify_session(token)
+            return user
+        except Exception as e:
+            logger.warning(f"Token verification failed: {e}")
+            return None
     
     def logout(self, token: str) -> bool:
-        """Logout user"""
-        if token in self._tokens:
-            del self._tokens[token]
-            return True
-        return False
+        """Logout user using AuthManager"""
+        try:
+            return self.auth_manager.logout_user(token)
+        except Exception as e:
+            logger.warning(f"Logout failed: {e}")
+            return False
 
 
 # Singleton instance

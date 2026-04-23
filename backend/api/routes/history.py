@@ -5,12 +5,32 @@ from flask import Blueprint, request, jsonify, g
 from backend.core.logger import get_logger
 from database.chat_repository import ChatRepository
 from database.analysis_repository import AnalysisRepository
+import math
+import numpy as np
 
 logger = get_logger(__name__)
 history_bp = Blueprint('history', __name__)
 
 chat_repo = ChatRepository()
 analysis_repo = AnalysisRepository()
+
+
+def make_serializable(obj):
+    """Convert NaN/Infinity to None for JSON serialization"""
+    if isinstance(obj, dict):
+        return {k: make_serializable(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [make_serializable(item) for item in obj]
+    elif isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    elif isinstance(obj, (np.floating,)):
+        val = float(obj)
+        if math.isnan(val) or math.isinf(val):
+            return None
+        return val
+    return obj
 
 
 def get_current_user_id():
@@ -211,6 +231,9 @@ def get_analysis(report_id):
             return jsonify({'error': 'Report not found'}), 404
         
         full_data = analysis_repo.get_full_report_data(report_id)
+        
+        # Convert NaN/Infinity to None for JSON serialization
+        full_data = make_serializable(full_data)
         
         return jsonify({
             'id': report.id,

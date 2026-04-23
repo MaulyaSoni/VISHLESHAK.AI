@@ -87,7 +87,10 @@ export function ChatbotMode() {
 
       const response = await fetch(`${API_BASE_URL}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('vishleshak_token')}`
+        },
         body: JSON.stringify({
           message: userMessage.content,
           session_id: sessionId,

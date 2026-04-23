@@ -13,6 +13,10 @@ logger = get_logger(__name__)
 chat_bp = Blueprint('chat', __name__)
 chat_repo = ChatRepository()
 
+# Session-level chain cache (mimics st.session_state.qa_chain)
+chain_cache = {}
+chain_lock = threading.Lock()
+
 
 @chat_bp.route('', methods=['POST'])
 def chat():
@@ -39,7 +43,7 @@ def chat():
                 try:
                     chat_repo.save_message(
                         conversation_id=conv_id,
-                        role="human",
+                        role="user",
                         content=message,
                         metadata={"dataset_hash": dataset_hash} if dataset_hash else None,
                     )
@@ -65,7 +69,7 @@ def chat():
                     try:
                         chat_repo.save_message(
                             conversation_id=conv_id,
-                            role="ai",
+                            role="assistant",
                             content=response_text,
                             metadata={"warning": "no_dataset"},
                         )
@@ -78,7 +82,14 @@ def chat():
             # Try full chain; fall back to a clear error if optional deps are missing.
             try:
                 from chatbot.qa_chain import EnhancedQAChain
-                qa_chain = EnhancedQAChain(df, session_id=session_id or "default")
+                
+                # Get or create cached chain (mimics st.session_state.qa_chain)
+                cache_key = f"{session_id}_{dataset_hash}"
+                if cache_key not in chain_cache:
+                    with chain_lock:
+                        if cache_key not in chain_cache:  # Double-check locking
+                            chain_cache[cache_key] = EnhancedQAChain(df, session_id=session_id or "default")
+                qa_chain = chain_cache[cache_key]
             except Exception as e:
                 response_text = (
                     "Chat engine isn't fully available on this server.\n\n"
@@ -89,7 +100,7 @@ def chat():
                     try:
                         chat_repo.save_message(
                             conversation_id=conv_id,
-                            role="ai",
+                            role="assistant",
                             content=response_text,
                             metadata={"error": str(e)},
                         )
@@ -103,12 +114,14 @@ def chat():
 
             def _run():
                 try:
-                    qa_chain.ask(
+                    result = qa_chain.ask(
                         message,
                         use_rag=True,
-                        return_dict=False,
+                        return_dict=True,  # MUST be True to get quality_score
                         stream_callback=lambda t: q.put(t),
                     )
+                    # Put result metadata as special event
+                    q.put(f"__RESULT__:{json.dumps(result)}")
                 except Exception as e:
                     q.put(f"\n\n[Error: {e}]")
                 finally:
@@ -118,28 +131,43 @@ def chat():
             t.start()
 
             full = []
+            result_meta = {}
             while True:
                 item = q.get()
                 if item is None:
                     break
+                if item.startswith("__RESULT__:"):
+                    result_meta = json.loads(item[len("__RESULT__:"):])
+                    continue
                 full.append(item)
                 yield f"data: {json.dumps({'chunk': item})}\n\n"
 
             response_text = "".join(full).strip()
 
-            # Save assistant message to DB (best-effort)
+            # Save assistant message to DB with metadata
             if conv_id is not None:
                 try:
                     chat_repo.save_message(
                         conversation_id=conv_id,
-                        role="ai",
+                        role="assistant",
                         content=response_text,
-                        metadata=None,
+                        metadata={
+                            "quality_score": result_meta.get("quality_score"),
+                            "quality_grade": result_meta.get("quality_grade"),
+                        },
                     )
                 except Exception as e:
                     logger.warning(f"Failed saving assistant message: {e}")
 
-            yield f"data: {json.dumps({'done': True, 'response': response_text})}\n\n"
+            # Send done event with metadata
+            done_event = {
+                'done': True, 
+                'response': response_text,
+                'quality_score': result_meta.get("quality_score"),
+                'quality_grade': result_meta.get("quality_grade"),
+                'cycle_number': result_meta.get("cycle_number"),
+            }
+            yield f"data: {json.dumps(done_event)}\n\n"
             
         except Exception as e:
             logger.error(f"Chat error: {e}")

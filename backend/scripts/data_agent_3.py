@@ -137,8 +137,19 @@ def safe_fn(title: str, n: int = 35) -> str:
 
 def save_chart(fig, title: str, idx: int, state: dict) -> dict:
     base = f"chart_{idx}_{safe_fn(title)}"
-    html = f"{base}.html"
-    png  = f"{base}.png"
+    
+    # Use absolute path based on UPLOAD_FOLDER to avoid CWD issues
+    try:
+        from config import settings
+        chart_dir = os.path.join(settings.UPLOAD_FOLDER, 'charts')
+        os.makedirs(chart_dir, exist_ok=True)
+        html = os.path.join(chart_dir, f"{base}.html")
+        png = os.path.join(chart_dir, f"{base}.png")
+    except Exception:
+        # Fallback to relative path if config not available
+        html = f"{base}.html"
+        png = f"{base}.png"
+    
     fig.update_layout(template="plotly_white",
                       margin=dict(l=50,r=50,t=60,b=50),
                       font=dict(family="Inter,Arial,sans-serif", size=12))

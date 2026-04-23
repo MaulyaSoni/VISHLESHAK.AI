@@ -38,8 +38,10 @@ export function AnalysisMode() {
   
   const [isUploading, setIsUploading] = useState(false)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [isGeneratingCharts, setIsGeneratingCharts] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [showVisuals, setShowVisuals] = useState(false)
 
   const handleFileUpload = async (file: File) => {
     setIsUploading(true)
@@ -111,6 +113,36 @@ export function AnalysisMode() {
       console.error('Analysis failed:', error)
     } finally {
       setIsAnalyzing(false)
+    }
+  }
+
+  const handleGenerateCharts = async () => {
+    if (!currentDataset) return
+    
+    setIsGeneratingCharts(true)
+    setShowVisuals(true)
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/analysis/generate-charts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dataset_hash: currentDataset.hash,
+        }),
+      })
+      
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Chart generation failed')
+      }
+      
+      const result = await response.json()
+      // Store charts in cache for the Charts tab
+      setChartsCache(result.charts || [])
+    } catch (error) {
+      console.error('Chart generation failed:', error)
+    } finally {
+      setIsGeneratingCharts(false)
     }
   }
 
@@ -203,34 +235,69 @@ export function AnalysisMode() {
             Comprehensive Analysis
           </h2>
           
-          {!analysisResult ? (
-            <button
-              onClick={handleAnalyze}
-              disabled={isAnalyzing}
-              className="btn-primary flex items-center gap-2"
-            >
-              {isAnalyzing ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  Analyzing...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4" />
-                  {useAgentMode ? '🚀 Analyse with AI Agent' : '🚀 Analyse Data'}
-                </>
-              )}
-            </button>
-          ) : (
-            <button
-              onClick={handleAnalyze}
-              disabled={isAnalyzing}
-              className="btn-secondary flex items-center gap-2"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Re-Analyse
-            </button>
-          )}
+          <div className="flex gap-3">
+            {/* Generate Visuals Button */}
+            {analysisResult && (
+              <button
+                onClick={() => {
+                  if (showVisuals) {
+                    setShowVisuals(false)
+                  } else {
+                    handleGenerateCharts()
+                  }
+                }}
+                disabled={isGeneratingCharts}
+                className="btn-secondary flex items-center gap-2"
+              >
+                {isGeneratingCharts ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : showVisuals ? (
+                  <>
+                    <span>🔒</span>
+                    Hide Charts
+                  </>
+                ) : (
+                  <>
+                    <span>📊</span>
+                    Generate Visuals
+                  </>
+                )}
+              </button>
+            )}
+            
+            {/* Analyze Button */}
+            {!analysisResult ? (
+              <button
+                onClick={handleAnalyze}
+                disabled={isAnalyzing}
+                className="btn-primary flex items-center gap-2"
+              >
+                {isAnalyzing ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    {useAgentMode ? '🚀 Analyse with AI Agent' : '🚀 Analyse Data'}
+                  </>
+                )}
+              </button>
+            ) : (
+              <button
+                onClick={handleAnalyze}
+                disabled={isAnalyzing}
+                className="btn-secondary flex items-center gap-2"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Re-Analyse
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Preview Toggle */}

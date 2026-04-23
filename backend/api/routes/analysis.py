@@ -11,26 +11,84 @@ logger = get_logger(__name__)
 analysis_bp = Blueprint('analysis', __name__)
 
 
+@analysis_bp.route('/generate-charts', methods=['POST'])
+def generate_charts():
+    """POST /api/analysis/generate-charts - Generate visualization charts for dataset"""
+    data = request.get_json()
+    dataset_hash = data.get('dataset_hash', '')
+    
+    if not dataset_hash:
+        return jsonify({"error": "dataset_hash required"}), 400
+    
+    try:
+        # Load dataset
+        from backend.services.file_service import file_service
+        from backend.app_modules.utils.dashboard_visualizer import DashboardVisualizer
+        import plotly.io as pio
+        
+        logger.info(f"Generating charts for dataset: {dataset_hash}")
+        df = file_service.load_dataframe(dataset_hash)
+        if df is None:
+            return jsonify({"error": "Dataset not found"}), 404
+        
+        # Generate charts using DashboardVisualizer
+        visualizer = DashboardVisualizer(df)
+        charts = visualizer.create_overview_dashboard()
+        
+        logger.info(f"Generated {len(charts)} charts")
+        
+        # Convert Plotly figures to JSON for frontend
+        charts_json = []
+        for title, fig in charts:
+            chart_json = pio.to_json(fig)
+            charts_json.append({
+                'title': title,
+                'plotly_json': json.loads(chart_json)
+            })
+        
+        logger.info(f"Returning {len(charts_json)} charts to frontend")
+        return jsonify({
+            'charts': charts_json,
+            'count': len(charts_json)
+        })
+        
+    except Exception as e:
+        logger.error(f"Chart generation error: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
 def convert_to_serializable(obj):
     """Convert numpy types and other non-JSON-serializable types to Python native types"""
     import numpy as np
     import pandas as pd
+    import math
     
     if isinstance(obj, dict):
         return {k: convert_to_serializable(v) for k, v in obj.items()}
     elif isinstance(obj, list):
         return [convert_to_serializable(item) for item in obj]
+    elif isinstance(obj, (np.bool_, bool)):
+        return bool(obj)
     elif isinstance(obj, np.integer):
         return int(obj)
     elif isinstance(obj, np.floating):
-        return float(obj)
+        val = float(obj)
+        # Handle NaN and Infinity
+        if math.isnan(val) or math.isinf(val):
+            return None
+        return val
+    elif isinstance(obj, float):
+        # Handle Python native float NaN/Infinity
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
     elif isinstance(obj, np.ndarray):
-        return obj.tolist()
+        return [convert_to_serializable(item) for item in obj.tolist()]
     elif isinstance(obj, pd.DataFrame):
         return obj.to_dict(orient='records')
     elif isinstance(obj, pd.Series):
         return obj.tolist()
-    elif pd.isna(obj):
+    elif pd.isna(obj) if hasattr(pd, 'isna') else obj is None:
         return None
     else:
         return obj

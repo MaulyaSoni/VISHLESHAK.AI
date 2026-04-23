@@ -16,6 +16,7 @@ agent_bp = Blueprint('agent', __name__)
 # In-memory storage for agent progress (use Redis in production)
 agent_progress = {}
 agent_threads = {}
+agent_lock = threading.Lock()  # Thread safety for agent_progress dict
 
 
 def get_current_user_id():
@@ -91,20 +92,21 @@ def run_agent():
                 step_text = str(evt.get("step", "")).strip()
                 if not step_text:
                     return
-                agent_progress[session_id]["steps"].append({
-                    "step": step_text,
-                    "status": evt.get("status", "done"),
-                })
-                # Best-effort progress estimate based on steps list (agent has variable length)
-                agent_progress[session_id]["progress"] = min(95, len(agent_progress[session_id]["steps"]) * 5)
+                with agent_lock:
+                    agent_progress[session_id]["steps"].append({
+                        "step": step_text,
+                        "status": evt.get("status", "done"),
+                    })
+                    # Best-effort progress estimate based on steps list (agent has variable length)
+                    agent_progress[session_id]["progress"] = min(95, len(agent_progress[session_id]["steps"]) * 5)
 
             data_agent_3.set_progress_callback(_on_progress)
 
             report_data = data_agent_3.run_agent(instruction_effective, force_task_type=mode)
-            agent_progress[session_id]["progress"] = 100
-            
-            agent_progress[session_id]['report'] = report_data
-            agent_progress[session_id]['status'] = 'done'
+            with agent_lock:
+                agent_progress[session_id]["progress"] = 100
+                agent_progress[session_id]['report'] = report_data
+                agent_progress[session_id]['status'] = 'done'
             
             # Update database with completed report
             if report_id:
@@ -119,8 +121,9 @@ def run_agent():
             
         except Exception as e:
             logger.error(f"Agent error: {e}")
-            agent_progress[session_id]['status'] = 'error'
-            agent_progress[session_id]['error'] = str(e)
+            with agent_lock:
+                agent_progress[session_id]['status'] = 'error'
+                agent_progress[session_id]['error'] = str(e)
     
     thread = threading.Thread(target=run_agent_thread, daemon=True)
     thread.start()

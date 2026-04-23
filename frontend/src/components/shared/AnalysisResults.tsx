@@ -11,6 +11,7 @@ import {
   Lightbulb,
   Download
 } from 'lucide-react'
+import Plot from 'react-plotly.js'
 
 const TABS = [
   { key: 'summary', label: 'Summary', icon: FileText },
@@ -185,7 +186,26 @@ export function AnalysisResults() {
                 {chartsCache.map((chart: any, idx) => (
                   <div key={idx} className="card p-4">
                     <h4 className="font-medium mb-3">{chart.title || `Chart ${idx + 1}`}</h4>
-                    {chart.component || (
+                    {chart.plotly_json ? (
+                      <Plot
+                        data={chart.plotly_json.data}
+                        layout={{
+                          ...chart.plotly_json.layout,
+                          autosize: true,
+                          height: 400,
+                          margin: { l: 50, r: 30, t: 50, b: 50 }
+                        }}
+                        config={{
+                          responsive: true,
+                          displayModeBar: true,
+                          modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+                          displaylogo: false
+                        }}
+                        className="w-full"
+                        useResizeHandler={true}
+                        style={{ width: '100%' }}
+                      />
+                    ) : chart.component || (
                       <div className="h-64 bg-bg-elevated rounded-lg flex items-center justify-center text-text-muted">
                         Chart visualization
                       </div>
@@ -197,6 +217,7 @@ export function AnalysisResults() {
               <div className="card p-8 text-center text-text-muted">
                 <BarChart3 className="w-12 h-12 mx-auto mb-3 opacity-50" />
                 <p>No charts generated for this analysis.</p>
+                <p className="text-sm mt-2">Click "Generate Visuals" to create interactive charts.</p>
               </div>
             )}
           </div>
