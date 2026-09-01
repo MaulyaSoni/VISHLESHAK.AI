@@ -5,8 +5,8 @@ Authentication Manager — register, login, logout, verify
 import logging
 from typing import Optional, Tuple
 
-from database.models import User
-from database.user_repository import UserRepository, UserExistsError, UserNotFoundError
+from app_modules.database.models import User
+from app_modules.database.user_repository import UserRepository, UserExistsError, UserNotFoundError
 from .password_utils import (
     hash_password, verify_password,
     validate_password_strength, validate_email, validate_username,

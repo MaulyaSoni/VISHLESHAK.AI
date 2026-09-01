@@ -12,7 +12,7 @@ import {
   RefreshCw,
   Database
 } from 'lucide-react'
-import { API_BASE_URL } from '@/api/client'
+import { API_BASE_URL, apiFetch } from '@/api/client'
 
 // Feature cards like app.py
 const FEATURES = [
@@ -49,16 +49,23 @@ export function AnalysisMode() {
     
     const formData = new FormData()
     formData.append('file', file)
+    const token = localStorage.getItem('vishleshak_token')
     
     try {
-      const response = await fetch(`${API_BASE_URL}/api/upload`, {
+      const response = await apiFetch('/api/files/upload', {
         method: 'POST',
         body: formData,
       })
       
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Upload failed')
+        let message = 'Upload failed'
+        try {
+          const error = await response.json()
+          message = error.error || error.detail || message
+        } catch {
+          // Ignore parse failure and use generic error.
+        }
+        throw new Error(message)
       }
       
       const result = await response.json()
@@ -91,9 +98,8 @@ export function AnalysisMode() {
     setIsAnalyzing(true)
     
     try {
-      const response = await fetch(`${API_BASE_URL}/api/analyze`, {
+      const response = await apiFetch('/api/analyze', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           dataset_hash: currentDataset.hash,
           use_agent_mode: useAgentMode,
@@ -103,7 +109,11 @@ export function AnalysisMode() {
       
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || 'Analysis failed')
+        console.error("Analyze error response:", error)
+        if (error.detail && Array.isArray(error.detail)) {
+            throw new Error(error.detail.map((d: any) => d.msg).join(', '))
+        }
+        throw new Error(error.error || error.detail || 'Analysis failed')
       }
       
       const result = await response.json()
@@ -123,9 +133,8 @@ export function AnalysisMode() {
     setShowVisuals(true)
     
     try {
-      const response = await fetch(`${API_BASE_URL}/api/analysis/generate-charts`, {
+      const response = await apiFetch('/api/analysis/generate-charts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           dataset_hash: currentDataset.hash,
         }),
@@ -191,20 +200,20 @@ export function AnalysisMode() {
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
               <Database className="w-5 h-5 text-accent-blue" />
-              <span className="font-medium">{currentDataset.filename}</span>
+              <span className="font-medium">{currentDataset?.filename || 'No dataset'}</span>
             </div>
             
             <div className="flex gap-4">
               <div className="text-center">
-                <div className="text-xl font-bold">{currentDataset.rows.toLocaleString()}</div>
+                <div className="text-xl font-bold">{currentDataset?.rows?.toLocaleString() || '0'}</div>
                 <div className="text-xs text-text-muted uppercase">Rows</div>
               </div>
               <div className="text-center">
-                <div className="text-xl font-bold">{currentDataset.cols}</div>
+                <div className="text-xl font-bold">{currentDataset?.cols || '0'}</div>
                 <div className="text-xs text-text-muted uppercase">Columns</div>
               </div>
               <div className="text-center">
-                <div className="text-xl font-bold">{currentDataset.numericCount}</div>
+                <div className="text-xl font-bold">{currentDataset?.numericCount || '0'}</div>
                 <div className="text-xs text-text-muted uppercase">Numeric</div>
               </div>
               <div className="text-center">

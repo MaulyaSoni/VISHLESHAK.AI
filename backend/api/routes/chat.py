@@ -120,6 +120,9 @@ def chat():
                         return_dict=True,  # MUST be True to get quality_score
                         stream_callback=lambda t: q.put(t),
                     )
+                    # Convert QualityScore objects to dicts for JSON serialization
+                    if 'quality_score' in result and hasattr(result['quality_score'], 'to_dict'):
+                        result['quality_score'] = result['quality_score'].to_dict()
                     # Put result metadata as special event
                     q.put(f"__RESULT__:{json.dumps(result)}")
                 except Exception as e:
@@ -160,14 +163,31 @@ def chat():
                     logger.warning(f"Failed saving assistant message: {e}")
 
             # Send done event with metadata
+            # Convert QualityScore object to dict if needed
+            quality_score = result_meta.get("quality_score")
+            if hasattr(quality_score, 'to_dict'):
+                quality_score = quality_score.to_dict()
+            elif isinstance(quality_score, str):
+                # If it's already a string, try to parse it
+                try:
+                    quality_score = json.loads(quality_score)
+                except:
+                    quality_score = None
+            
             done_event = {
                 'done': True, 
                 'response': response_text,
-                'quality_score': result_meta.get("quality_score"),
+                'quality_score': quality_score,
                 'quality_grade': result_meta.get("quality_grade"),
                 'cycle_number': result_meta.get("cycle_number"),
             }
-            yield f"data: {json.dumps(done_event)}\n\n"
+            
+            # Final safety net - convert any remaining non-serializable objects
+            try:
+                yield f"data: {json.dumps(done_event)}\n\n"
+            except (TypeError, ValueError) as e:
+                logger.warning(f"JSON serialization failed, sending simplified response: {e}")
+                yield f"data: {json.dumps({'done': True, 'response': response_text})}\n\n"
             
         except Exception as e:
             logger.error(f"Chat error: {e}")

@@ -18,7 +18,7 @@ import {
   Code,
   Download
 } from 'lucide-react'
-import { API_BASE_URL } from '@/api/client'
+import { API_BASE_URL, apiFetch } from '@/api/client'
 
 interface AgentStep {
   step: string
@@ -82,34 +82,37 @@ export function DataAgentMode() {
   const [stepDelay, setStepDelay] = useState(2)
   const [maxSteps, setMaxSteps] = useState(15)
   const [isUploading, setIsUploading] = useState(false)
+  const [jobId, setJobId] = useState<string | null>(null)
 
-  // Poll for progress when running
+  // Poll for progress when running — uses job-specific status endpoint
   useEffect(() => {
-    if (!isRunning) return
+    if (!isRunning || !jobId) return
 
     const interval = setInterval(async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/agent/progress`)
+        const response = await apiFetch(`/api/agent/status/${jobId}`)
         if (response.ok) {
           const data = await response.json()
           setSteps(data.steps || [])
           setProgress(data.progress || 0)
-          
-          if (data.status === 'done') {
+
+          if (data.status === 'completed') {
             setIsRunning(false)
+            setJobId(null)
             setReport(data.report)
-          } else if (data.status === 'error') {
+          } else if (data.status === 'failed') {
             setIsRunning(false)
+            setJobId(null)
             setError(data.error || 'Unknown error')
           }
         }
       } catch (e) {
-        // Ignore polling errors
+        // Ignore transient polling errors
       }
     }, 2000)
 
     return () => clearInterval(interval)
-  }, [isRunning])
+  }, [isRunning, jobId])
 
   const handleFileUpload = async (file: File) => {
     setIsUploading(true)
@@ -117,12 +120,23 @@ export function DataAgentMode() {
     formData.append('file', file)
     
     try {
-      const response = await fetch(`${API_BASE_URL}/api/upload`, {
+      const response = await apiFetch('/api/files/upload', {
         method: 'POST',
         body: formData,
+        // Remove Content-Type so fetch can set the boundary for FormData
+        headers: { 'Content-Type': 'undefined' }
       })
       
-      if (!response.ok) throw new Error('Upload failed')
+      if (!response.ok) {
+        let message = 'Upload failed'
+        try {
+          const err = await response.json()
+          message = err.error || err.detail || message
+        } catch {
+          // Ignore parse failure and use generic error.
+        }
+        throw new Error(message)
+      }
       
       const result = await response.json()
       const dataset = {
@@ -152,6 +166,11 @@ export function DataAgentMode() {
 
   const handleRunAgent = async () => {
     if (!instruction.trim()) return
+
+    if (instruction.trim().length < 5) {
+      setError('Instruction must be at least 5 characters long')
+      return
+    }
     
     setIsRunning(true)
     setError(null)
@@ -160,21 +179,38 @@ export function DataAgentMode() {
     setProgress(0)
     
     try {
-      const response = await fetch(`${API_BASE_URL}/api/agent/run`, {
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token') || localStorage.getItem('vishleshak_token') || ''
+      const response = await fetch('http://localhost:8000/api/agent/run', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
         body: JSON.stringify({
           instruction: instruction.trim(),
-          mode: agentMode,
-          dataset_hash: currentDataset?.hash,
-          step_delay: stepDelay,
-          max_steps: maxSteps,
+          mode: agentMode || 'analysis_only',
+          dataset_hash: currentDataset?.hash || null,
+          file_path: currentDataset?.hash || null,
+          step_delay: stepDelay || 1.2,
+          max_steps: maxSteps || 18,
         }),
       })
       
+      if (response.status === 422) {
+        const detail = await response.json()
+        console.error('422 validation error:', JSON.stringify(detail, null, 2))
+        throw new Error(`Validation error: ${JSON.stringify(detail.detail)}`)
+      }
+
       if (!response.ok) {
         const err = await response.json()
         throw new Error(err.error || 'Failed to start agent')
+      }
+
+      const data = await response.json()
+      // Save the job ID returned by the backend so polling can target it
+      if (data.job_id) {
+        setJobId(data.job_id)
       }
     } catch (error) {
       setIsRunning(false)
@@ -184,10 +220,14 @@ export function DataAgentMode() {
 
   const handleStopAgent = async () => {
     try {
-      await fetch(`${API_BASE_URL}/api/agent/stop`, { method: 'POST' })
-      setIsRunning(false)
+      if (jobId) {
+        await apiFetch(`/api/agent/cancel/${jobId}`, { method: 'POST' })
+      }
     } catch (e) {
-      // Ignore
+      // Ignore cancel errors
+    } finally {
+      setIsRunning(false)
+      setJobId(null)
     }
   }
 
@@ -597,7 +637,7 @@ export function DataAgentMode() {
                         // Download from backend
                         try {
                           const filename = report.notebook_path!.split(/[\\/]/).pop()!
-                          const response = await fetch(`${API_BASE_URL}/api/agent/notebook/${filename}`)
+                          const response = await apiFetch(`/api/agent/notebook/${filename}`)
                           if (response.ok) {
                             const blob = await response.blob()
                             const url = URL.createObjectURL(blob)

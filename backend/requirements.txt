@@ -83,3 +83,6 @@ apscheduler==3.10.4
 
 # Chart export (NEW)
 kaleido==0.2.1
+
+# Modal Sandbox (Week 1) - Secure code execution
+modal==0.64.0

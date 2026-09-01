@@ -246,6 +246,21 @@ EVALUATION:"""
             return quality_score
         
         except Exception as e:
+            error_msg = str(e)
+            
+            # Handle rate limiting gracefully
+            if 'rate_limit' in error_msg.lower() or '429' in error_msg:
+                logger.warning(f"Quality evaluation skipped - rate limit reached. Will retry later.")
+                # Return a neutral score without wasting API calls
+                return QualityScore(
+                    overall_score=75.0,  # Neutral score
+                    dimension_scores={},
+                    strengths=["Response generated successfully"],
+                    weaknesses=["Quality evaluation temporarily unavailable"],
+                    suggestions=["Rate limit reached - evaluation will resume when limits reset"],
+                    timestamp=datetime.now()
+                )
+            
             logger.error(f"Error evaluating quality: {e}", exc_info=True)
             
             # Return default score on error

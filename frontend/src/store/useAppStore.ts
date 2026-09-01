@@ -5,7 +5,7 @@ export type Domain = 'general' | 'finance' | 'insurance' | 'ecommerce'
 export type AppMode = 'Analysis' | 'Q&A' | 'DataAgent'
 
 export interface User {
-  id: number
+  id: number | string
   email: string
   username: string
   domain: Domain

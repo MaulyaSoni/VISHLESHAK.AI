@@ -13,7 +13,7 @@ import {
   Trash2,
   FolderOpen
 } from 'lucide-react'
-import { API_BASE_URL } from '@/api/client'
+import { API_BASE_URL, apiFetch } from '@/api/client'
 
 interface Conversation {
   id: number
@@ -68,18 +68,14 @@ export function Sidebar() {
       setLoading(true)
       try {
         // Fetch conversations
-        const convResponse = await fetch(`${API_BASE_URL}/api/history/conversations`, {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('vishleshak_token')}` }
-        })
+        const convResponse = await apiFetch('/api/history/conversations')
         if (convResponse.ok) {
           const convData = await convResponse.json()
           setConversations(convData.conversations || [])
         }
         
         // Fetch analyses
-        const analysisResponse = await fetch(`${API_BASE_URL}/api/history/analyses`, {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('vishleshak_token')}` }
-        })
+        const analysisResponse = await apiFetch('/api/history/analyses')
         if (analysisResponse.ok) {
           const analysisData = await analysisResponse.json()
           setAnalyses(analysisData.analyses || [])
@@ -97,17 +93,17 @@ export function Sidebar() {
   const handleNewChat = async () => {
     // Create conversation in database and use its id as the session id
     try {
-      const resp = await fetch(`${API_BASE_URL}/api/history/conversations`, {
+      const resp = await apiFetch('/api/history/conversations', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('vishleshak_token')}`
-        },
-        body: JSON.stringify({ title: 'New Chat' })
+        body: JSON.stringify({ 
+          title: 'New Chat',
+          user_id: user?.username || 'default'
+        })
       })
       if (resp.ok) {
         const created = await resp.json()
-        setCurrentSessionId(String(created.id))
+        setCurrentSessionId(String(created.conv_id || created.id))
+        setMode('Q&A')
       } else {
         // Fallback to local-only session id if backend is unavailable
         setCurrentSessionId(crypto.randomUUID())
@@ -120,12 +116,14 @@ export function Sidebar() {
   
   const handleDeleteConversation = async (id: number, e: React.MouseEvent) => {
     e.stopPropagation()
+    if (!confirm('Are you sure you want to delete this conversation?')) return
     try {
-      await fetch(`${API_BASE_URL}/api/history/conversations/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('vishleshak_token')}` }
+      const resp = await apiFetch(`/api/history/conversations/${id}`, {
+        method: 'DELETE'
       })
-      setConversations(conversations.filter(c => c.id !== id))
+      if (resp.ok) {
+        setConversations(conversations.filter(c => c.id !== id))
+      }
     } catch (e) {
       console.error('Failed to delete conversation:', e)
     }
@@ -133,9 +131,7 @@ export function Sidebar() {
   
   const handleLoadAnalysis = async (id: number) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/history/analyses/${id}`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('vishleshak_token')}` }
-      })
+      const response = await apiFetch(`/api/history/analyses/${id}`)
       if (response.ok) {
         const data = await response.json()
         // Store in app state and switch to DataAgent mode

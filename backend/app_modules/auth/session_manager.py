@@ -10,8 +10,8 @@ from typing import List, Optional
 
 import jwt
 
-from database.db_manager import get_db
-from database.models import Session as DBSession, User
+from app_modules.database.db_manager import get_db
+from app_modules.database.models import Session as DBSession, User
 
 logger = logging.getLogger(__name__)
 

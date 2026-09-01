@@ -1,0 +1,4 @@
+[OK] Reasoning engine loaded
+OK: FastAPI server starting on port 8000
+API Docs: http://localhost:8000/docs
+FastAPI server shutting down

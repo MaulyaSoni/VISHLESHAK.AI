@@ -387,84 +387,72 @@ class DashboardVisualizer:
 
     def create_overview_dashboard(self) -> List[Tuple[str, go.Figure]]:
         """
-        Returns a list of (label, figure) tuples — every chart is smart and
-        richly annotated.
+        Returns a curated list of (label, figure) tuples — focused on the 
+        MOST informative charts for quick data understanding.
         """
         charts: List[Tuple[str, go.Figure]] = []
 
-        # ── 1. DATA QUALITY ──────────────────────────────────────────────
+        # ── 1. DATA QUALITY (Always show) ──────────────────────────────
         try:
-            charts.append(("🔍 Data Completeness", _missing_map(self.df)))
+            charts.append(("🔍 Data Completeness Heatmap", _missing_map(self.df)))
         except Exception as e:
             logger.error(f"Missing map: {e}")
 
-        # ── 2. NUMERIC DISTRIBUTIONS ─────────────────────────────────────
-        for col in self.num[:6]:
+        # ── 2. TOP 3 NUMERIC DISTRIBUTIONS (Most important columns only) ─
+        # Select columns with most variance/interest
+        numeric_distributions = min(3, len(self.num))
+        for col in self.num[:numeric_distributions]:
             try:
-                charts.append((f"📊 {col} — Distribution", _histogram_stats(self.df, col)))
+                # Use shorter title for cleaner display
+                charts.append((f"Distribution: {col}", _histogram_stats(self.df, col)))
             except Exception as e:
                 logger.error(f"Histogram {col}: {e}")
 
-        # ── 3. CORRELATION HEATMAP ───────────────────────────────────────
+        # ── 3. CORRELATION HEATMAP (If enough numeric columns) ───────────
         if len(self.num) >= 3:
             try:
-                charts.append(("🔗 Correlation Heatmap", _correlation_heatmap(self.df, self.num)))
+                charts.append(("🔗 Correlation Matrix", _correlation_heatmap(self.df, self.num)))
             except Exception as e:
                 logger.error(f"Corr heatmap: {e}")
 
-        # ── 4. STRONGEST RELATIONSHIPS ───────────────────────────────────
-        for x, y, r in _top_pairs(self.df, self.num, n=3):
+        # ── 4. TOP 2 SCATTER PLOTS (Strongest relationships) ───────────
+        for x, y, r in _top_pairs(self.df, self.num, n=2):
             try:
-                color_col = self.cat[0] if self.cat and self.df[self.cat[0]].nunique() <= 10 else None
-                label = f"↔️ {x} vs {y}  (r={r:.2f})"
+                color_col = self.cat[0] if self.cat and self.df[self.cat[0]].nunique() <= 8 else None
+                # Cleaner title format
+                label = f"{x} vs {y} (r={r:.2f})"
                 charts.append((label, _scatter_trend(self.df, x, y, color_col)))
             except Exception as e:
                 logger.error(f"Scatter {x}/{y}: {e}")
 
-        # ── 5. CATEGORICAL DISTRIBUTIONS ─────────────────────────────────
-        for col in self.cat[:4]:
+        # ── 5. TOP 2 CATEGORICAL (Most important categories) ────────────
+        categorical_shown = min(2, len(self.cat))
+        for col in self.cat[:categorical_shown]:
             try:
-                charts.append((f"🏷️ {col} — Categories", _categorical_chart(self.df, col)))
+                charts.append((f"Breakdown: {col}", _categorical_chart(self.df, col)))
             except Exception as e:
                 logger.error(f"Cat chart {col}: {e}")
 
-        # ── 6. NUMERIC × CATEGORY interactions ───────────────────────────
+        # ── 6. ONE BOX PLOT (If we have categories and numerics) ─────────
         if self.cat and self.num:
             cat = self.cat[0]
             n_unique = self.df[cat].nunique()
-            for num_col in self.num[:2]:
+            # Only show if reasonable number of categories
+            if n_unique <= 10:
                 try:
-                    if n_unique <= 12:
-                        charts.append((f"📦 {num_col} by {cat}",
-                                       _box_by_category(self.df, cat, num_col)))
-                    elif n_unique <= 30:
-                        charts.append((f"📊 Mean {num_col} by {cat}",
-                                       _grouped_bar_mean(self.df, cat, num_col)))
+                    charts.append((f"{self.num[0]} by {cat}",
+                                   _box_by_category(self.df, cat, self.num[0])))
                 except Exception as e:
-                    logger.error(f"Cat×num {cat}/{num_col}: {e}")
+                    logger.error(f"Cat×num {cat}/{self.num[0]}: {e}")
 
-        # ── 7. TIME SERIES ────────────────────────────────────────────────
+        # ── 7. TIME SERIES (If we have date columns) ─────────────────────
         if self.dt and self.num:
             try:
-                charts.append(("📈 Time Series", _time_series(self.df, self.dt[0], self.num)))
+                charts.append(("📈 Trend Over Time", _time_series(self.df, self.dt[0], self.num[:3])))
             except Exception as e:
                 logger.error(f"Time series: {e}")
 
-        # ── 8. OUTLIER OVERVIEW ───────────────────────────────────────────
-        if len(self.num) >= 2:
-            try:
-                charts.append(("📦 Outlier Overview", _outlier_overview(self.df, self.num)))
-            except Exception as e:
-                logger.error(f"Outlier box: {e}")
-
-        # ── 9. SCATTER MATRIX ─────────────────────────────────────────────
-        if len(self.num) >= 3:
-            try:
-                charts.append(("🔭 Scatter Matrix", _scatter_matrix(self.df, self.num, self.cat)))
-            except Exception as e:
-                logger.error(f"Scatter matrix: {e}")
-
-        logger.info(f"Generated {len(charts)} intelligent charts")
+        logger.info(f"Generated {len(charts)} curated charts (max 12)")
         return charts
 
     def create_custom_chart(
