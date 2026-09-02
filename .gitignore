@@ -23,10 +23,9 @@ wheels/
 
 node_modules/
 # Virtual Environment
-venv/
+
 env/
 ENV/
-.venv
 
 # IDE
 .vscode/
@@ -37,6 +36,10 @@ ENV/
 
 # Environment variables
 .env
+
+# Kaggle credentials (Week 2)
+.kaggle/
+kaggle_data/
 
 # Data & storage directories
 data/

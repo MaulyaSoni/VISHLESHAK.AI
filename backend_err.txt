@@ -1,0 +1,18 @@
+2026-05-15 00:40:51.302 
+Warning: the config option 'server.enableCORS=false' is not compatible with
+'server.enableXsrfProtection=true'.
+As a result, 'server.enableCORS' is being overridden to 'true'.
+
+More information:
+In order to protect against CSRF attacks, we send a cookie with each request.
+To do so, we must specify allowable origins, which places a restriction on
+cross-origin resource sharing.
+
+If cross origin resource sharing is required, please disable server.enableXsrfProtection.
+            
+2026-05-15 00:40:53.913 Started server process [19004]
+2026-05-15 00:40:53.957 Waiting for application startup.
+2026-05-15 00:40:53.995 Application startup complete.
+2026-05-15 00:40:53.997 [Errno 10048] error while attempting to bind on address ('127.0.0.1', 8000): [winerror 10048] only one usage of each socket address (protocol/network address/port) is normally permitted
+2026-05-15 00:40:53.998 Waiting for application shutdown.
+2026-05-15 00:40:53.999 Application shutdown complete.

@@ -180,44 +180,67 @@ export function AnalysisResults() {
         )}
 
         {activeTab === 'charts' && (
-          <div className="space-y-4">
+          <div className="space-y-6">
             {chartsCache && chartsCache.length > 0 ? (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {chartsCache.map((chart: any, idx) => (
-                  <div key={idx} className="card p-4">
-                    <h4 className="font-medium mb-3">{chart.title || `Chart ${idx + 1}`}</h4>
-                    {chart.plotly_json ? (
-                      <Plot
-                        data={chart.plotly_json.data}
-                        layout={{
-                          ...chart.plotly_json.layout,
-                          autosize: true,
-                          height: 400,
-                          margin: { l: 50, r: 30, t: 50, b: 50 }
-                        }}
-                        config={{
-                          responsive: true,
-                          displayModeBar: true,
-                          modeBarButtonsToRemove: ['lasso2d', 'select2d'],
-                          displaylogo: false
-                        }}
-                        className="w-full"
-                        useResizeHandler={true}
-                        style={{ width: '100%' }}
-                      />
-                    ) : chart.component || (
-                      <div className="h-64 bg-bg-elevated rounded-lg flex items-center justify-center text-text-muted">
-                        Chart visualization
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+              <>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-text-primary">
+                    📊 Generated Visualizations ({chartsCache.length} charts)
+                  </h3>
+                  <p className="text-sm text-text-muted">
+                    Interactive charts • Hover for details • Use toolbar to zoom/export
+                  </p>
+                </div>
+                
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {chartsCache.map((chart: any, idx) => (
+                    <div key={idx} className="card p-5 hover:shadow-lg transition-shadow">
+                      <h4 className="font-semibold mb-4 text-text-primary text-base">
+                        {chart.title || `Chart ${idx + 1}`}
+                      </h4>
+                      {chart.plotly_json ? (
+                        <div className="bg-white rounded-lg p-2">
+                          <Plot
+                            data={chart.plotly_json.data}
+                            layout={{
+                              ...chart.plotly_json.layout,
+                              autosize: true,
+                              height: 380,
+                              margin: { l: 50, r: 30, t: 40, b: 50 },
+                              font: { family: 'Inter, system-ui, sans-serif' }
+                            }}
+                            config={{
+                              responsive: true,
+                              displayModeBar: true,
+                              modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+                              displaylogo: false,
+                              toImageButtonOptions: {
+                                format: 'png',
+                                filename: chart.title || `chart_${idx + 1}`,
+                                height: 600,
+                                width: 800,
+                                scale: 2
+                              }
+                            }}
+                            className="w-full"
+                            useResizeHandler={true}
+                            style={{ width: '100%' }}
+                          />
+                        </div>
+                      ) : chart.component || (
+                        <div className="h-64 bg-bg-elevated rounded-lg flex items-center justify-center text-text-muted">
+                          Chart visualization
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </>
             ) : (
-              <div className="card p-8 text-center text-text-muted">
-                <BarChart3 className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>No charts generated for this analysis.</p>
-                <p className="text-sm mt-2">Click "Generate Visuals" to create interactive charts.</p>
+              <div className="card p-12 text-center text-text-muted">
+                <BarChart3 className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                <p className="text-lg mb-2">No charts generated for this analysis.</p>
+                <p className="text-sm">Click "Generate Visuals" to create interactive charts.</p>
               </div>
             )}
           </div>

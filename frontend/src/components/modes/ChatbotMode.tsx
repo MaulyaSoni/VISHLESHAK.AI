@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useAppStore } from '../../store/useAppStore'
 import { HeroHeader } from '../layout/HeroHeader'
 import { Send, Bot, User, Sparkles, Loader2 } from 'lucide-react'
-import { API_BASE_URL } from '@/api/client'
+import { API_BASE_URL, apiFetch } from '@/api/client'
 
 interface Message {
   id: string
@@ -18,7 +18,7 @@ interface Message {
 }
 
 export function ChatbotMode() {
-  const { currentDataset, currentSessionId, addChatSession } = useAppStore()
+  const { currentDataset, currentSessionId, addChatSession, setCurrentSessionId } = useAppStore()
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -64,33 +64,29 @@ export function ChatbotMode() {
 
     try {
       // If we don't yet have a DB-backed conversation id, create one.
-      // Sidebar will normally create it, but this makes Chat robust when user types immediately.
       let sessionId = currentSessionId
       if (!/^\d+$/.test(sessionId)) {
         try {
-          const resp = await fetch(`${API_BASE_URL}/api/history/conversations`, {
+          const resp = await apiFetch('/api/history/conversations', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('vishleshak_token')}`,
-            },
-            body: JSON.stringify({ title: userMessage.content.slice(0, 45) }),
+            body: JSON.stringify({ 
+              title: userMessage.content.slice(0, 60) || 'New Chat',
+              user_id: useAppStore.getState().user?.username || 'default',
+              dataset_info: currentDataset?.filename || null
+            }),
           })
           if (resp.ok) {
             const created = await resp.json()
-            sessionId = String(created.id)
+            sessionId = String(created.conv_id || created.id)
+            setCurrentSessionId(sessionId)
           }
-        } catch {
-          // ignore
+        } catch (err) {
+          console.error('Failed to create conversation history:', err)
         }
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/chat`, {
+      const response = await apiFetch('/api/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('vishleshak_token')}`
-        },
         body: JSON.stringify({
           message: userMessage.content,
           session_id: sessionId,

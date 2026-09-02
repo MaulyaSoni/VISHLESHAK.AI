@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAppStore } from '../../store/useAppStore'
 import { Table, AlertCircle, Database } from 'lucide-react'
-import { API_BASE_URL } from '@/api/client'
+import { apiFetch } from '@/api/client'
 
 interface DataPreviewProps {
   datasetHash?: string
@@ -28,7 +28,7 @@ export function DataPreview({ datasetHash }: DataPreviewProps) {
 
       try {
         setLoading(true)
-        const response = await fetch(`${API_BASE_URL}/api/datasets/${hash}/preview`)
+        const response = await apiFetch(`/api/datasets/${hash}/preview`)
         if (!response.ok) throw new Error('Failed to fetch preview')
         const result = await response.json()
         setData(result)

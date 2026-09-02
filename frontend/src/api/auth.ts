@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { apiClient } from './client'
 import type { User } from '@/store/useAppStore'
+import { normalizeUserPayload } from '@/utils/auth'
 
 interface LoginCredentials {
   email: string
@@ -15,7 +16,16 @@ interface LoginResponse {
 export const authApi = {
   login: async (credentials: LoginCredentials): Promise<LoginResponse> => {
     const { data } = await apiClient.post('/auth/login', credentials)
-    return data
+    const user = normalizeUserPayload(data)
+
+    if (!data?.token || !user) {
+      throw new Error('Invalid login response from server')
+    }
+
+    return {
+      token: data.token,
+      user,
+    }
   },
   
   logout: async (): Promise<void> => {
@@ -24,7 +34,13 @@ export const authApi = {
   
   me: async (): Promise<User> => {
     const { data } = await apiClient.get('/auth/me')
-    return data
+    const user = normalizeUserPayload(data)
+
+    if (!user) {
+      throw new Error('Invalid user response from server')
+    }
+
+    return user
   },
 }
 

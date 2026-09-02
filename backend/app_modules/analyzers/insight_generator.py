@@ -14,7 +14,10 @@ import pandas as pd
 from typing import Dict, List, Any
 from .statistical_analyzer import StatisticalAnalyzer
 from .pattern_detector import PatternDetector
-from core.llm import get_analysis_llm
+try:
+    from core.llm import get_analysis_llm
+except ImportError:
+    from app_modules.core.llm import get_analysis_llm
 import json
 
 

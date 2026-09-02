@@ -22,6 +22,27 @@ import plotly.graph_objects as go
 import requests
 from groq import Groq
 
+try:
+    from backend.app_modules.memory_system.memory_manager import get_memory_manager
+    MEMORY_AVAILABLE = True
+except ImportError:
+    MEMORY_AVAILABLE = False
+    def get_memory_manager(uid='default'): return None
+
+# ─── Week 2: Reasoning Engine ──────────────────────────
+try:
+    from reasoning_engine import (
+        plan_task,
+        reflect_on_result,
+        inject_plan_into_messages,
+        summarize_progress
+    )
+    REASONING_AVAILABLE = True
+    print("[OK] Reasoning engine loaded")
+except ImportError:
+    REASONING_AVAILABLE = False
+    print("[WARN] Reasoning engine not available - running without planning")
+
 # ─────────────────────────────────────────────
 #  CONFIG
 # ─────────────────────────────────────────────
@@ -59,6 +80,7 @@ def cancel_agent():
 def fresh_state(instruction: str) -> dict:
     return {
         "instruction":    instruction,
+        "user_id":        "default",
         "intent":         {},        # parsed intent from intent_node
         "df":             None,
         "df_schema":      "",
@@ -938,6 +960,24 @@ def run_agent(instruction: str, force_task_type: str = None) -> dict:
     
     messages = [{"role":"system","content":SYSTEM},
                 {"role":"user","content":instruction}]
+    if MEMORY_AVAILABLE:
+        mm  = get_memory_manager(state.get('user_id', 'default'))
+        mem = mm.load_context_for_agent(state)
+        if mem:
+            messages[0]['content'] += f'\n\n{mem}'
+            print('  🧠 Memory context loaded')
+
+    # ─── Week 2: AI Planning ───────────────────────────────
+    current_plan = None
+    if REASONING_AVAILABLE and state.get("df") is not None:
+        print("\n🧠 Planning execution...")
+        data_summary = f"Rows: {state['row_count']}, Columns: {state['col_count']}\nSchema:\n{state['df_schema']}"
+        current_plan = plan_task(instruction, data_summary, client, MODEL_SUPER)
+        print(f"  📋 {current_plan['task_summary']}")
+        print(f"  📊 Task type: {current_plan['task_type']}")
+        print(f"  📝 Steps: {len(current_plan['steps'])}")
+        messages = inject_plan_into_messages(messages, current_plan, state)
+    # ────────────────────────────────────────────────────────
 
     for step in range(MAX_LOOP_STEPS):
         if cancel_requested:
@@ -971,6 +1011,24 @@ def run_agent(instruction: str, force_task_type: str = None) -> dict:
 
         result = dispatch(name, args, state, client)
         print(f"     ↳ {str(result)[:220]}")
+
+        # ─── Week 2: Reflection ───────────────────────────
+        if REASONING_AVAILABLE and current_plan:
+            try:
+                reflection = reflect_on_result(
+                    name,
+                    str(result),
+                    client,
+                    MODEL_SUPER
+                )
+                score = reflection.get('score', 3)
+                if score <= 2:
+                    print(f"  ⚠️  Reflection: {name} scored {score}/5 — {reflection.get('reason', 'poor result')}")
+                elif score >= 4:
+                    print(f"  ✅ Reflection: {name} scored {score}/5")
+            except Exception as e:
+                pass  # Don't break execution if reflection fails
+        # ──────────────────────────────────────────────────
 
         # Self-correction
         if any(x in result for x in ["FAILED","not found","does not exist","Error"]):

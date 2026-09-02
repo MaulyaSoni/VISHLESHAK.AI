@@ -36,34 +36,18 @@ class VishleshakState(TypedDict):
 
 
 def memory_agent(state: VishleshakState) -> VishleshakState:
-    """Memory Agent - Loads and writes summarized memory using 3-tier system"""
-    logger.info("Memory agent processing...")
-    
-    user_id = state.get("user_id", "default")
-    session_id = state.get("session_id")
-    domain = state.get("domain", "general")
-    dataset = state.get("dataset")
-    
     try:
-        from core.memory_v2 import get_memory_manager
-        mm = get_memory_manager(user_id=user_id, domain=domain)
-        
-        dataset_hash = ""
-        if dataset is not None:
-            import hashlib
-            col_str = ",".join(sorted(dataset.columns.tolist()))
-            dataset_hash = hashlib.md5(col_str.encode()).hexdigest()[:12]
-            state["dataset_hash"] = dataset_hash
-        
-        columns = list(dataset.columns) if dataset is not None else []
-        
-        ctx = mm.load_context(dataset_hash=dataset_hash, columns=columns)
-        state["memory_context"] = ctx
-        
+        from backend.app_modules.memory_system.memory_manager import get_memory_manager
+        mm  = get_memory_manager(state.get('user_id', 'default'))
+        ctx = mm.load_context_for_agent({
+            'df': state.get('dataset'),
+            'instruction': state.get('user_query', ''),
+            'domain_context': None,
+        })
+        state['memory_context'] = ctx
     except Exception as e:
-        logger.warning(f"Memory load error: {e}")
-        state["memory_context"] = ""
-    
+        logger.warning(f'Memory load failed: {e}')
+        state['memory_context'] = ''
     return state
 
 
@@ -150,13 +134,13 @@ Consider:
 def data_agent(state: VishleshakState) -> VishleshakState:
     """Data Agent - Handles profiling, cleaning, statistical analysis"""
     logger.info("Data agent processing...")
-    
+
     df = state.get("dataset")
     if df is None:
         state["error"] = "No dataset available"
         state["next_agent"] = "END"
         return state
-    
+
     try:
         numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
         cat_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
@@ -198,13 +182,22 @@ def data_agent(state: VishleshakState) -> VishleshakState:
             "statistics": stats,
             "cleaning_applied": True
         }
+        # Phase 2A — Domain Intelligence (fingerprint + KPI computation)
+        try:
+            from agentic_core.domain_agent_mixin import enrich_state_with_domain
+            state = enrich_state_with_domain({
+                **state,
+                "df": df_clean,
+            })
+        except Exception as e:
+            logger.warning(f"Domain intelligence enrichment failed: {e}")
+
         state["analysis_result"] = {
             "profile": profile,
             "statistics": stats,
-            "data_agent_completed": True
+            "data_agent_completed": True,
+            "domain_context": state.get("domain_context")
         }
-        
-        logger.info(f"Data agent completed: {profile['rows']} rows, {profile['columns']} cols")
     
     except Exception as e:
         logger.error(f"Data agent error: {e}")
@@ -471,9 +464,19 @@ def report_agent(state: VishleshakState) -> VishleshakState:
     
     # Save analysis to memory (Tier 2)
     try:
-        from core.memory_v2 import get_memory_manager
-        mm = get_memory_manager(user_id=state.get("user_id", "default"), domain=state.get("domain", "general"))
-        mm.save_analysis(state)
+        from backend.app_modules.memory_system.memory_manager import get_memory_manager
+        mm = get_memory_manager(state.get('user_id', 'default'))
+        agent_state = {
+            'final_report':   state.get('analysis_result', {}),
+            'domain_context': state.get('domain_context'),
+            'domain_kpis':    state.get('domain_context', {}).get('kpis', {}) if isinstance(state.get('domain_context'), dict) else state.get('domain_kpis', {}),
+            'source_path':    state.get('dataset_name', ''),
+            'row_count':      state.get('dataset_meta', {}).get('profile', {}).get('rows', len(state['dataset']) if state.get('dataset') is not None else 0),
+            'instruction':    state.get('user_query', ''),
+            'dataset':        state.get('dataset'),
+            'analysis_result': state.get('analysis_result')
+        }
+        mm.save_after_analysis(agent_state)
     except Exception as e:
         logger.warning(f"Memory save error: {e}")
     

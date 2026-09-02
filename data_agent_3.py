@@ -901,25 +901,32 @@ FAILURE HANDLING:
 # ─────────────────────────────────────────────
 cancel_requested = False
 
-def run_agent(instruction: str, force_task_type: str = None) -> dict:
+def run_agent(instruction: str, force_task_type: str = None, dataset_path: str = None, step_delay: float = None, max_steps: int = None) -> dict:
     """
     Run the data analysis agent.
     
     Args:
         instruction: User's analysis instruction
-        force_task_type: Optional - force a specific task type ('analysis_only', 'analysis_ml', 'analysis_ml_notebook')
-    
-    Returns:
-        Complete analysis report dictionary
+        force_task_type: Optional - force a specific task type
+        dataset_path: Optional - force use of a specific local dataset
+        step_delay: Optional - override default step delay
+        max_steps: Optional - override default max steps
     """
     global cancel_requested
     cancel_requested = False
     
+    delay = step_delay if step_delay is not None else STEP_DELAY
+    max_s = max_steps if max_steps is not None else MAX_LOOP_STEPS
+
     print(f"\n{'═'*58}\n  Vishleshak Agent v3\n{'═'*58}\n  {instruction}\n{'═'*58}\n")
 
     client   = get_client()
     state    = fresh_state(instruction)
     
+    if dataset_path:
+        state["source_path"] = dataset_path
+        print(f"  📌 Forced dataset: {dataset_path}")
+
     # If task type is forced, set it in state before starting
     if force_task_type:
         state["intent"] = {"task_type": force_task_type}
@@ -928,14 +935,14 @@ def run_agent(instruction: str, force_task_type: str = None) -> dict:
     messages = [{"role":"system","content":SYSTEM},
                 {"role":"user","content":instruction}]
 
-    for step in range(MAX_LOOP_STEPS):
+    for step in range(max_s):
         if cancel_requested:
             print("\n  ⛔ Agent stopped by user.")
             state["errors"].append("Analysis stopped by user before completion.")
             break
 
-        print(f"\n⟳  Step {step+1}/{MAX_LOOP_STEPS}")
-        time.sleep(STEP_DELAY)
+        print(f"\n⟳  Step {step+1}/{max_s}")
+        time.sleep(delay)
 
         resp = groq_call(client, MODEL_SUPER, messages, tools=TOOL_SCHEMAS, max_tokens=512)
         msg  = resp.choices[0].message
